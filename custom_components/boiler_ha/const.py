@@ -1,0 +1,41 @@
+"""Constants for the Boiler Solar Controller integration."""
+
+DOMAIN = "boiler_ha"
+
+# Config entry keys (entity selection)
+CONF_RELAY_1 = "relay_1"
+CONF_RELAY_2 = "relay_2"
+CONF_TEMP_SENSOR_1 = "temp_sensor_1"
+CONF_TEMP_SENSOR_2 = "temp_sensor_2"
+CONF_SOLAR_SENSOR = "solar_sensor"
+CONF_GRID_SENSOR = "grid_sensor"
+CONF_GRID_POSITIVE_IS_EXPORT = "grid_positive_is_export"
+CONF_BOILER1_NAME = "boiler1_name"
+CONF_BOILER2_NAME = "boiler2_name"
+
+# Options keys (runtime-adjustable settings)
+CONF_MAX_TEMP_1 = "max_temp_1"
+CONF_MAX_TEMP_2 = "max_temp_2"
+CONF_MIN_SURPLUS = "min_surplus"
+CONF_BOILER1_POWER = "boiler1_power"
+CONF_BOILER2_POWER = "boiler2_power"
+
+# hass.data runtime keys
+RUNTIME_AUTO_1 = "auto_1"
+RUNTIME_AUTO_2 = "auto_2"
+
+# Default values
+DEFAULT_MAX_TEMP = 90.0       # °C
+DEFAULT_MIN_SURPLUS = 500.0   # W — minimum surplus before starting any boiler
+DEFAULT_BOILER_POWER = 2000.0 # W — estimated rated power of one resistance
+
+# Platforms
+PLATFORMS = ["switch", "number", "sensor"]
+
+# Status strings (used by sensor entities)
+STATUS_HEATING = "Încălzire"
+STATUS_STANDBY = "Standby"
+STATUS_TARGET_REACHED = "Temperatură atinsă"
+STATUS_NO_SOLAR = "Fără producție solară"
+STATUS_MANUAL = "Control manual"
+STATUS_UNAVAILABLE = "Senzor indisponibil"

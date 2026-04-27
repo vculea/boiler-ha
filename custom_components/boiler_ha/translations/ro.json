@@ -1,0 +1,60 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configurare boilere",
+        "description": "Selectează releele Shelly și senzorii de temperatură pentru fiecare boiler.",
+        "data": {
+          "boiler1_name": "Nume Boiler 1",
+          "relay_1": "Releu Boiler 1 (switch Shelly)",
+          "temp_sensor_1": "Senzor temperatură Boiler 1",
+          "boiler2_name": "Nume Boiler 2",
+          "relay_2": "Releu Boiler 2 (switch Shelly)",
+          "temp_sensor_2": "Senzor temperatură Boiler 2"
+        }
+      },
+      "solar": {
+        "title": "Configurare panouri fotovoltaice",
+        "description": "Selectează senzorii Shelly EM pentru producție solară și rețea.",
+        "data": {
+          "solar_sensor": "Senzor producție solară (W)",
+          "grid_sensor": "Senzor rețea (import/export W)",
+          "grid_convention": "Convenție senzor rețea"
+        }
+      },
+      "settings": {
+        "title": "Setări control",
+        "description": "Configurează limitele de temperatură și pragurile de putere.",
+        "data": {
+          "max_temp_1": "Temperatură maximă Boiler 1 (°C)",
+          "max_temp_2": "Temperatură maximă Boiler 2 (°C)",
+          "min_surplus": "Surplus minim solar pentru pornire (W)",
+          "boiler1_power": "Putere nominală rezistență Boiler 1 (W)",
+          "boiler2_power": "Putere nominală rezistență Boiler 2 (W)"
+        }
+      }
+    },
+    "error": {
+      "same_relay": "Cele două boilere nu pot folosi același releu.",
+      "same_temp_sensor": "Cele două boilere nu pot folosi același senzor de temperatură.",
+      "same_sensor": "Senzorul solar și cel de rețea trebuie să fie diferiți."
+    },
+    "abort": {
+      "already_configured": "Integrarea este deja configurată."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Modificare setări control",
+        "data": {
+          "max_temp_1": "Temperatură maximă Boiler 1 (°C)",
+          "max_temp_2": "Temperatură maximă Boiler 2 (°C)",
+          "min_surplus": "Surplus minim solar pentru pornire (W)",
+          "boiler1_power": "Putere nominală rezistență Boiler 1 (W)",
+          "boiler2_power": "Putere nominală rezistență Boiler 2 (W)"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "domain": "boiler_ha",
+  "name": "Boiler Solar Controller",
+  "version": "1.0.0",
+  "config_flow": true,
+  "documentation": "https://github.com/local/boiler-ha",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": [],
+  "iot_class": "local_polling"
+}

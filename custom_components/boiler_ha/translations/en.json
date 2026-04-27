@@ -1,0 +1,60 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure Boilers",
+        "description": "Select the Shelly relay switches and temperature sensors for each boiler.",
+        "data": {
+          "boiler1_name": "Boiler 1 Name",
+          "relay_1": "Boiler 1 Relay (Shelly switch)",
+          "temp_sensor_1": "Boiler 1 Temperature Sensor",
+          "boiler2_name": "Boiler 2 Name",
+          "relay_2": "Boiler 2 Relay (Shelly switch)",
+          "temp_sensor_2": "Boiler 2 Temperature Sensor"
+        }
+      },
+      "solar": {
+        "title": "Configure Photovoltaic Panels",
+        "description": "Select the Shelly EM sensors for solar production and grid measurement.",
+        "data": {
+          "solar_sensor": "Solar Production Sensor (W)",
+          "grid_sensor": "Grid Sensor (import/export W)",
+          "grid_convention": "Grid Sensor Convention"
+        }
+      },
+      "settings": {
+        "title": "Control Settings",
+        "description": "Configure temperature limits and power thresholds.",
+        "data": {
+          "max_temp_1": "Boiler 1 Max Temperature (°C)",
+          "max_temp_2": "Boiler 2 Max Temperature (°C)",
+          "min_surplus": "Minimum Solar Surplus to Start (W)",
+          "boiler1_power": "Boiler 1 Resistance Rated Power (W)",
+          "boiler2_power": "Boiler 2 Resistance Rated Power (W)"
+        }
+      }
+    },
+    "error": {
+      "same_relay": "Both boilers cannot use the same relay.",
+      "same_temp_sensor": "Both boilers cannot use the same temperature sensor.",
+      "same_sensor": "The solar sensor and grid sensor must be different."
+    },
+    "abort": {
+      "already_configured": "Integration is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Edit Control Settings",
+        "data": {
+          "max_temp_1": "Boiler 1 Max Temperature (°C)",
+          "max_temp_2": "Boiler 2 Max Temperature (°C)",
+          "min_surplus": "Minimum Solar Surplus to Start (W)",
+          "boiler1_power": "Boiler 1 Resistance Rated Power (W)",
+          "boiler2_power": "Boiler 2 Resistance Rated Power (W)"
+        }
+      }
+    }
+  }
+}
