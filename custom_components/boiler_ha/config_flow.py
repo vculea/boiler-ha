@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.helpers import selector
 from homeassistant.helpers.selector import (
     EntitySelector,
     EntitySelectorConfig,
@@ -20,6 +19,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorConfig,
     SelectSelectorMode,
     TextSelector,
+    TextSelectorConfig,
 )
 
 from .const import (
@@ -41,31 +41,6 @@ from .const import (
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
-)
-
-# ── Selectors ────────────────────────────────────────────────────────────────
-
-_SWITCH_SELECTOR = EntitySelector(EntitySelectorConfig(domain="switch"))
-_TEMP_SENSOR_SELECTOR = EntitySelector(
-    EntitySelectorConfig(domain="sensor", device_class="temperature")
-)
-_POWER_SENSOR_SELECTOR = EntitySelector(
-    EntitySelectorConfig(domain="sensor", device_class="power")
-)
-_TEMP_NUMBER = NumberSelector(
-    NumberSelectorConfig(min=30, max=95, step=1, unit_of_measurement="°C", mode=NumberSelectorMode.SLIDER)
-)
-_POWER_NUMBER = NumberSelector(
-    NumberSelectorConfig(min=0, max=10000, step=50, unit_of_measurement="W", mode=NumberSelectorMode.BOX)
-)
-_GRID_CONVENTION = SelectSelector(
-    SelectSelectorConfig(
-        options=[
-            {"value": "export", "label": "Pozitiv = Export la rețea (surplus solar)"},
-            {"value": "import", "label": "Pozitiv = Import din rețea (consum)"},
-        ],
-        mode=SelectSelectorMode.LIST,
-    )
 )
 
 
@@ -96,12 +71,12 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_BOILER1_NAME, default="Boiler 1"): TextSelector(),
-                vol.Required(CONF_RELAY_1): _SWITCH_SELECTOR,
-                vol.Required(CONF_TEMP_SENSOR_1): _TEMP_SENSOR_SELECTOR,
-                vol.Required(CONF_BOILER2_NAME, default="Boiler 2"): TextSelector(),
-                vol.Required(CONF_RELAY_2): _SWITCH_SELECTOR,
-                vol.Required(CONF_TEMP_SENSOR_2): _TEMP_SENSOR_SELECTOR,
+                vol.Required(CONF_BOILER1_NAME, default="Boiler 1"): TextSelector(TextSelectorConfig()),
+                vol.Required(CONF_RELAY_1): EntitySelector(EntitySelectorConfig(domain="switch")),
+                vol.Required(CONF_TEMP_SENSOR_1): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="temperature")),
+                vol.Required(CONF_BOILER2_NAME, default="Boiler 2"): TextSelector(TextSelectorConfig()),
+                vol.Required(CONF_RELAY_2): EntitySelector(EntitySelectorConfig(domain="switch")),
+                vol.Required(CONF_TEMP_SENSOR_2): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="temperature")),
             }
         )
         return self.async_show_form(
@@ -130,9 +105,14 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_SOLAR_SENSOR): _POWER_SENSOR_SELECTOR,
-                vol.Required(CONF_GRID_SENSOR): _POWER_SENSOR_SELECTOR,
-                vol.Required("grid_convention", default="export"): _GRID_CONVENTION,
+                vol.Required(CONF_SOLAR_SENSOR): EntitySelector(EntitySelectorConfig(domain="sensor")),
+                vol.Required(CONF_GRID_SENSOR): EntitySelector(EntitySelectorConfig(domain="sensor")),
+                vol.Required("grid_convention", default="export"): SelectSelector(
+                    SelectSelectorConfig(
+                        options=["export", "import"],
+                        mode=SelectSelectorMode.LIST,
+                    )
+                ),
             }
         )
         return self.async_show_form(
@@ -164,11 +144,21 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_MAX_TEMP_1, default=DEFAULT_MAX_TEMP): _TEMP_NUMBER,
-                vol.Required(CONF_MAX_TEMP_2, default=DEFAULT_MAX_TEMP): _TEMP_NUMBER,
-                vol.Required(CONF_MIN_SURPLUS, default=DEFAULT_MIN_SURPLUS): _POWER_NUMBER,
-                vol.Required(CONF_BOILER1_POWER, default=DEFAULT_BOILER_POWER): _POWER_NUMBER,
-                vol.Required(CONF_BOILER2_POWER, default=DEFAULT_BOILER_POWER): _POWER_NUMBER,
+                vol.Required(CONF_MAX_TEMP_1, default=DEFAULT_MAX_TEMP): NumberSelector(
+                    NumberSelectorConfig(min=30, max=95, step=1, unit_of_measurement="°C", mode=NumberSelectorMode.SLIDER)
+                ),
+                vol.Required(CONF_MAX_TEMP_2, default=DEFAULT_MAX_TEMP): NumberSelector(
+                    NumberSelectorConfig(min=30, max=95, step=1, unit_of_measurement="°C", mode=NumberSelectorMode.SLIDER)
+                ),
+                vol.Required(CONF_MIN_SURPLUS, default=DEFAULT_MIN_SURPLUS): NumberSelector(
+                    NumberSelectorConfig(min=0, max=10000, step=50, unit_of_measurement="W", mode=NumberSelectorMode.BOX)
+                ),
+                vol.Required(CONF_BOILER1_POWER, default=DEFAULT_BOILER_POWER): NumberSelector(
+                    NumberSelectorConfig(min=0, max=10000, step=50, unit_of_measurement="W", mode=NumberSelectorMode.BOX)
+                ),
+                vol.Required(CONF_BOILER2_POWER, default=DEFAULT_BOILER_POWER): NumberSelector(
+                    NumberSelectorConfig(min=0, max=10000, step=50, unit_of_measurement="W", mode=NumberSelectorMode.BOX)
+                ),
             }
         )
         return self.async_show_form(
@@ -204,23 +194,23 @@ class BoilerOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(
                     CONF_MAX_TEMP_1,
                     default=opts.get(CONF_MAX_TEMP_1, DEFAULT_MAX_TEMP),
-                ): _TEMP_NUMBER,
+                ): NumberSelector(NumberSelectorConfig(min=30, max=95, step=1, unit_of_measurement="°C", mode=NumberSelectorMode.SLIDER)),
                 vol.Required(
                     CONF_MAX_TEMP_2,
                     default=opts.get(CONF_MAX_TEMP_2, DEFAULT_MAX_TEMP),
-                ): _TEMP_NUMBER,
+                ): NumberSelector(NumberSelectorConfig(min=30, max=95, step=1, unit_of_measurement="°C", mode=NumberSelectorMode.SLIDER)),
                 vol.Required(
                     CONF_MIN_SURPLUS,
                     default=opts.get(CONF_MIN_SURPLUS, DEFAULT_MIN_SURPLUS),
-                ): _POWER_NUMBER,
+                ): NumberSelector(NumberSelectorConfig(min=0, max=10000, step=50, unit_of_measurement="W", mode=NumberSelectorMode.BOX)),
                 vol.Required(
                     CONF_BOILER1_POWER,
                     default=opts.get(CONF_BOILER1_POWER, DEFAULT_BOILER_POWER),
-                ): _POWER_NUMBER,
+                ): NumberSelector(NumberSelectorConfig(min=0, max=10000, step=50, unit_of_measurement="W", mode=NumberSelectorMode.BOX)),
                 vol.Required(
                     CONF_BOILER2_POWER,
                     default=opts.get(CONF_BOILER2_POWER, DEFAULT_BOILER_POWER),
-                ): _POWER_NUMBER,
+                ): NumberSelector(NumberSelectorConfig(min=0, max=10000, step=50, unit_of_measurement="W", mode=NumberSelectorMode.BOX)),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

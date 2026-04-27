@@ -19,7 +19,7 @@
         "data": {
           "solar_sensor": "Senzor producție solară (W)",
           "grid_sensor": "Senzor rețea (import/export W)",
-          "grid_convention": "Convenție senzor rețea"
+          "grid_convention": "Convenție senzor rețea (export=pozitiv la rețea / import=pozitiv din rețea)"
         }
       },
       "settings": {
