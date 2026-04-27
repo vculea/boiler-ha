@@ -147,7 +147,13 @@ class BoilerCoordinator(DataUpdateCoordinator):
         temp_sensor_1 = cfg[CONF_TEMP_SENSOR_1]
         temp_sensor_2 = cfg[CONF_TEMP_SENSOR_2]
         grid_sensor = cfg[CONF_GRID_SENSOR]
-        grid_positive_is_export: bool = cfg.get(CONF_GRID_POSITIVE_IS_EXPORT, True)
+        # options can override the grid convention set during initial setup
+        opts = self.entry.options
+        grid_convention_override = opts.get("grid_convention_override")
+        if grid_convention_override is not None:
+            grid_positive_is_export: bool = grid_convention_override == "export"
+        else:
+            grid_positive_is_export: bool = cfg.get(CONF_GRID_POSITIVE_IS_EXPORT, True)
 
         temp1 = self._float_state(temp_sensor_1)
         temp2 = self._float_state(temp_sensor_2)
@@ -256,7 +262,12 @@ class BoilerCoordinator(DataUpdateCoordinator):
         auto_1 = rt.get(RUNTIME_AUTO_1, True)
         auto_2 = rt.get(RUNTIME_AUTO_2, True)
 
-        grid_positive_is_export = cfg.get(CONF_GRID_POSITIVE_IS_EXPORT, True)
+        opts = self.entry.options
+        grid_convention_override = opts.get("grid_convention_override")
+        if grid_convention_override is not None:
+            grid_positive_is_export = grid_convention_override == "export"
+        else:
+            grid_positive_is_export = cfg.get(CONF_GRID_POSITIVE_IS_EXPORT, True)
         grid_export: float | None = None
         if grid_raw is not None:
             grid_export = grid_raw if grid_positive_is_export else -grid_raw

@@ -189,6 +189,12 @@ class BoilerOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
+        # grid convention: prefer options override, fall back to original data
+        current_convention = opts.get(
+            "grid_convention_override",
+            "export" if self._entry.data.get(CONF_GRID_POSITIVE_IS_EXPORT, True) else "import",
+        )
+
         schema = vol.Schema(
             {
                 vol.Required(
@@ -211,6 +217,13 @@ class BoilerOptionsFlow(config_entries.OptionsFlow):
                     CONF_BOILER2_POWER,
                     default=opts.get(CONF_BOILER2_POWER, DEFAULT_BOILER_POWER),
                 ): NumberSelector(NumberSelectorConfig(min=0, max=10000, step=50, unit_of_measurement="W", mode=NumberSelectorMode.BOX)),
+                vol.Required(
+                    "grid_convention_override",
+                    default=current_convention,
+                ): SelectSelector(SelectSelectorConfig(
+                    options=["export", "import"],
+                    mode=SelectSelectorMode.LIST,
+                )),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

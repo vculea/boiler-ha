@@ -52,7 +52,8 @@
           "max_temp_2": "Temperatură maximă Boiler 2 (°C)",
           "min_surplus": "Surplus minim solar pentru pornire (W)",
           "boiler1_power": "Putere nominală rezistență Boiler 1 (W)",
-          "boiler2_power": "Putere nominală rezistență Boiler 2 (W)"
+          "boiler2_power": "Putere nominală rezistență Boiler 2 (W)",
+          "grid_convention_override": "Convenție senzor rețea (export=valoare pozitivă înseamnă surplus la rețea / import=valoare pozitivă înseamnă consum din rețea)"
         }
       }
     }
