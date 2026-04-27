@@ -178,6 +178,53 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=schema,
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict | None = None
+    ) -> config_entries.FlowResult:
+        """Allow changing relay/sensor entity assignments without re-adding the integration."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        current = entry.data if entry else {}
+        errors: dict = {}
+
+        if user_input is not None:
+            if user_input[CONF_RELAY_1] == user_input[CONF_RELAY_2]:
+                errors["base"] = "same_relay"
+            elif user_input[CONF_TEMP_SENSOR_1] == user_input[CONF_TEMP_SENSOR_2]:
+                errors["base"] = "same_temp_sensor"
+            elif user_input[CONF_SOLAR_SENSOR] == user_input[CONF_GRID_SENSOR]:
+                errors["base"] = "same_sensor"
+            else:
+                new_data = {**current, **user_input}
+                new_data[CONF_GRID_POSITIVE_IS_EXPORT] = (
+                    user_input.get("grid_convention", "import") == "export"
+                )
+                new_data.pop("grid_convention", None)
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data=new_data,
+                )
+
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_BOILER1_NAME, default=current.get(CONF_BOILER1_NAME, "Boiler 1")): TextSelector(TextSelectorConfig()),
+                vol.Required(CONF_RELAY_1, default=current.get(CONF_RELAY_1)): EntitySelector(EntitySelectorConfig(domain="switch")),
+                vol.Required(CONF_TEMP_SENSOR_1, default=current.get(CONF_TEMP_SENSOR_1)): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="temperature")),
+                vol.Required(CONF_BOILER2_NAME, default=current.get(CONF_BOILER2_NAME, "Boiler 2")): TextSelector(TextSelectorConfig()),
+                vol.Required(CONF_RELAY_2, default=current.get(CONF_RELAY_2)): EntitySelector(EntitySelectorConfig(domain="switch")),
+                vol.Required(CONF_TEMP_SENSOR_2, default=current.get(CONF_TEMP_SENSOR_2)): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="temperature")),
+                vol.Required(CONF_SOLAR_SENSOR, default=current.get(CONF_SOLAR_SENSOR)): EntitySelector(EntitySelectorConfig(domain="sensor")),
+                vol.Required(CONF_GRID_SENSOR, default=current.get(CONF_GRID_SENSOR)): EntitySelector(EntitySelectorConfig(domain="sensor")),
+                vol.Required("grid_convention", default="export" if current.get(CONF_GRID_POSITIVE_IS_EXPORT, True) else "import"): SelectSelector(
+                    SelectSelectorConfig(options=_GRID_CONVENTION_OPTIONS, mode=SelectSelectorMode.LIST)
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=schema,
+            errors=errors,
+        )
+
     @staticmethod
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> BoilerOptionsFlow:
         """Return options flow for editing settings after initial setup."""

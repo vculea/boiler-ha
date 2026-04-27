@@ -32,6 +32,21 @@
           "boiler1_power": "Putere nominală rezistență Boiler 1 (W)",
           "boiler2_power": "Putere nominală rezistență Boiler 2 (W)"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigurare entități",
+        "description": "Modifică releele, senzorii sau convenia de rețea fără a șterge integrarea.",
+        "data": {
+          "boiler1_name": "Nume Boiler 1",
+          "relay_1": "Releu Boiler 1 (switch Shelly)",
+          "temp_sensor_1": "Senzor temperatură Boiler 1",
+          "boiler2_name": "Nume Boiler 2",
+          "relay_2": "Releu Boiler 2 (switch Shelly)",
+          "temp_sensor_2": "Senzor temperatură Boiler 2",
+          "solar_sensor": "Senzor producție solară (W)",
+          "grid_sensor": "Senzor rețea (import/export W)",
+          "grid_convention": "Convenție senzor rețea"
+        }
       }
     },
     "error": {
