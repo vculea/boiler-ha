@@ -15,12 +15,24 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
 )
+
+_GRID_CONVENTION_OPTIONS = [
+    SelectOptionDict(
+        value="import",
+        label="➕ Pozitiv = consum din rețea  |  ➖ Negativ = injecție în rețea (cazul tău dacă Shelly EM arată + la consum)",
+    ),
+    SelectOptionDict(
+        value="export",
+        label="➕ Pozitiv = injecție în rețea  |  ➖ Negativ = consum din rețea",
+    ),
+]
 
 from .const import (
     DOMAIN,
@@ -107,9 +119,9 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_SOLAR_SENSOR): EntitySelector(EntitySelectorConfig(domain="sensor")),
                 vol.Required(CONF_GRID_SENSOR): EntitySelector(EntitySelectorConfig(domain="sensor")),
-                vol.Required("grid_convention", default="export"): SelectSelector(
+                vol.Required("grid_convention", default="import"): SelectSelector(
                     SelectSelectorConfig(
-                        options=["export", "import"],
+                        options=_GRID_CONVENTION_OPTIONS,
                         mode=SelectSelectorMode.LIST,
                     )
                 ),
@@ -221,7 +233,7 @@ class BoilerOptionsFlow(config_entries.OptionsFlow):
                     "grid_convention_override",
                     default=current_convention,
                 ): SelectSelector(SelectSelectorConfig(
-                    options=["export", "import"],
+                    options=_GRID_CONVENTION_OPTIONS,
                     mode=SelectSelectorMode.LIST,
                 )),
             }
