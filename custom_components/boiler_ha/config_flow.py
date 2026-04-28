@@ -46,6 +46,8 @@ from .const import (
     CONF_GRID_POSITIVE_IS_EXPORT,
     CONF_BOILER1_NAME,
     CONF_BOILER2_NAME,
+    CONF_POWER_SENSOR_1,
+    CONF_POWER_SENSOR_2,
     CONF_MAX_TEMP_1,
     CONF_MAX_TEMP_2,
     CONF_MIN_SURPLUS,
@@ -87,9 +89,11 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_BOILER1_NAME, default="Boiler 1"): TextSelector(TextSelectorConfig()),
                 vol.Required(CONF_RELAY_1): EntitySelector(EntitySelectorConfig(domain="switch")),
                 vol.Required(CONF_TEMP_SENSOR_1): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="temperature")),
+                vol.Optional(CONF_POWER_SENSOR_1): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="power")),
                 vol.Required(CONF_BOILER2_NAME, default="Boiler 2"): TextSelector(TextSelectorConfig()),
                 vol.Required(CONF_RELAY_2): EntitySelector(EntitySelectorConfig(domain="switch")),
                 vol.Required(CONF_TEMP_SENSOR_2): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="temperature")),
+                vol.Optional(CONF_POWER_SENSOR_2): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="power")),
             }
         )
         return self.async_show_form(
@@ -216,9 +220,11 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_BOILER1_NAME, default=current.get(CONF_BOILER1_NAME, "Boiler 1")): TextSelector(TextSelectorConfig()),
                 vol.Required(CONF_RELAY_1, default=current.get(CONF_RELAY_1)): EntitySelector(EntitySelectorConfig(domain="switch")),
                 vol.Required(CONF_TEMP_SENSOR_1, default=current.get(CONF_TEMP_SENSOR_1)): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="temperature")),
+                vol.Optional(CONF_POWER_SENSOR_1, description={"suggested_value": current.get(CONF_POWER_SENSOR_1)}): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="power")),
                 vol.Required(CONF_BOILER2_NAME, default=current.get(CONF_BOILER2_NAME, "Boiler 2")): TextSelector(TextSelectorConfig()),
                 vol.Required(CONF_RELAY_2, default=current.get(CONF_RELAY_2)): EntitySelector(EntitySelectorConfig(domain="switch")),
                 vol.Required(CONF_TEMP_SENSOR_2, default=current.get(CONF_TEMP_SENSOR_2)): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="temperature")),
+                vol.Optional(CONF_POWER_SENSOR_2, description={"suggested_value": current.get(CONF_POWER_SENSOR_2)}): EntitySelector(EntitySelectorConfig(domain="sensor", device_class="power")),
                 vol.Required(CONF_SOLAR_SENSOR, default=current.get(CONF_SOLAR_SENSOR)): EntitySelector(EntitySelectorConfig(domain="sensor")),
                 vol.Required(CONF_GRID_SENSOR, default=current.get(CONF_GRID_SENSOR)): EntitySelector(EntitySelectorConfig(domain="sensor")),
                 vol.Required("grid_convention", default="export" if current.get(CONF_GRID_POSITIVE_IS_EXPORT, True) else "import"): SelectSelector(

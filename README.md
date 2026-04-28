@@ -51,11 +51,11 @@ La `async_unload_entry` se anulează subscripțiile de stare și se eliberează 
 
 Setup în 3 pași, plus options flow și reconfigure flow:
 
-| Pas                   | Ce configurezi                                                                 |
-| --------------------- | ------------------------------------------------------------------------------ |
-| **Step 1 – user**     | Nume boiler, releu Shelly (switch), senzor temperatură — pentru fiecare boiler |
-| **Step 2 – solar**    | Senzor producție solar, senzor rețea, convenția semnului senzorului de rețea   |
-| **Step 3 – settings** | Temperaturi maxime, prag minim surplus, putere nominală rezistențe             |
+| Pas                   | Ce configurezi                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Step 1 – user**     | Nume boiler, releu Shelly (switch), senzor temperatură, senzor consum real (opțional) — pentru fiecare boiler |
+| **Step 2 – solar**    | Senzor producție solar, senzor rețea, convenția semnului senzorului de rețea, senzor tensiune (opțional)      |
+| **Step 3 – settings** | Temperaturi maxime, prag minim surplus, putere nominală rezistențe                                            |
 
 Options flow permite editarea setărilor din Step 3 fără a reinstala integrarea. Reconfigure flow permite schimbarea entităților (relee, senzori) fără a reinstala.
 
@@ -113,12 +113,13 @@ Dacă am folosi direct `export_retea`, un boiler pornit ar masca surplusul real 
 | ------------------------------------ | -------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `sensor.status_<boiler>`             | Sensor (text)        | Starea curentă: Încălzire / Standby / Temperatură atinsă / Fără producție solară / Control manual / Senzor indisponibil |
 | `sensor.temperatura_<boiler>`        | Sensor (°C)          | Temperatura boilerului (oglindește senzorul configurat)                                                                 |
+| `sensor.consum_<boiler>`             | Sensor (W)           | Consum curent: valoare reală din senzor (dacă e configurat) sau putere nominală × stare releu                           |
 | `sensor.productie_solara`            | Sensor (W)           | Producția panourilor fotovoltaice                                                                                       |
 | `sensor.putere_retea`                | Sensor (W)           | Putere rețea: pozitiv = import, negativ = export                                                                        |
 | `switch.control_automat_<boiler>`    | Switch               | Activează/dezactivează controlul solar automat per boiler                                                               |
 | `number.temperatura_maxima_<boiler>` | Number (°C, 30–95)   | Temperatura maximă țintă                                                                                                |
 | `number.prag_minim_surplus_solar`    | Number (W, 0–10 000) | Surplusul minim necesar pentru a porni orice boiler                                                                     |
-| `number.putere_nominala_<boiler>`    | Number (W, 0–10 000) | Puterea nominală a rezistenței (folosită în calculul surplusului virtual)                                               |
+| `number.putere_nominala_<boiler>`    | Number (W, 0–10 000) | Puterea nominală a rezistenței (folosită în calculul surplusului virtual și ca fallback pentru consum)                  |
 
 ---
 
@@ -154,8 +155,10 @@ Setările pot fi modificate oricând din **Configure** fără a reinstala integr
 
 Toate valorile de mai jos pot fi modificate live din dashboard (entitățile `number`) sau din **Configure** (options flow) fără restart:
 
-| Setare                        | Implicit | Descriere                                                     |
-| ----------------------------- | -------- | ------------------------------------------------------------- |
-| Temperatură maximă Boiler 1/2 | 90 °C    | Boilerul se oprește când atinge această temperatură           |
-| Prag minim surplus solar      | 800 W    | Sub acest surplus, niciun boiler nu pornește                  |
-| Putere nominală Boiler 1/2    | 1500 W   | Puterea rezistenței, folosită în calculul surplusului virtual |
+| Setare                        | Implicit | Descriere                                                                                  |
+| ----------------------------- | -------- | ------------------------------------------------------------------------------------------ |
+| Temperatură maximă Boiler 1/2 | 90 °C    | Boilerul se oprește când atinge această temperatură                                        |
+| Prag minim surplus solar      | 800 W    | Sub acest surplus, niciun boiler nu pornește                                               |
+| Putere nominală Boiler 1/2    | 1500 W   | Puterea rezistenței, folosită în calculul surplusului virtual și ca fallback pentru consum |
+
+> **Histerezis**: după atingerea temperaturii maxime, boilerul nu repornește decât când temperatura scade cu 5 °C sub țintă. Histerezisul e ignorat automat dacă targetul e modificat de user sau dacă e activă prioritatea de tensiune mare.

@@ -38,6 +38,8 @@ from .const import (
     CONF_MIN_SURPLUS,
     CONF_BOILER1_POWER,
     CONF_BOILER2_POWER,
+    CONF_POWER_SENSOR_1,
+    CONF_POWER_SENSOR_2,
     RUNTIME_AUTO_1,
     RUNTIME_AUTO_2,
     RUNTIME_LAST_MAX_TEMP_1,
@@ -335,6 +337,18 @@ class BoilerCoordinator(DataUpdateCoordinator):
         boiler2_power: float = rt.get(CONF_BOILER2_POWER, DEFAULT_BOILER_POWER)
         solar_producing = (solar or 0.0) > 50.0
 
+        # Real power sensor readings (if configured), fallback to rated power when ON
+        power_sensor_1 = cfg.get(CONF_POWER_SENSOR_1)
+        power_sensor_2 = cfg.get(CONF_POWER_SENSOR_2)
+        b1_consumption: float = (
+            (self._float_state(power_sensor_1) or 0.0) if power_sensor_1
+            else (boiler1_power if boiler1_on else 0.0)
+        )
+        b2_consumption: float = (
+            (self._float_state(power_sensor_2) or 0.0) if power_sensor_2
+            else (boiler2_power if boiler2_on else 0.0)
+        )
+
         voltage_sensor = cfg.get(CONF_VOLTAGE_SENSOR)
         grid_voltage = self._float_state(voltage_sensor) if voltage_sensor else None
         high_voltage = grid_voltage is not None and grid_voltage > DEFAULT_PRIORITY_VOLTAGE
@@ -360,8 +374,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
             "boiler2_temp": temp2,
             "boiler1_on": boiler1_on,
             "boiler2_on": boiler2_on,
-            "boiler1_power_consumption": boiler1_power if boiler1_on else 0.0,
-            "boiler2_power_consumption": boiler2_power if boiler2_on else 0.0,
+            "boiler1_power_consumption": b1_consumption,
+            "boiler2_power_consumption": b2_consumption,
             "solar_power": solar,
             "grid_export": grid_export,
             "grid_voltage": grid_voltage,

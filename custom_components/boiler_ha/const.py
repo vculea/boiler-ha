@@ -13,6 +13,8 @@ CONF_VOLTAGE_SENSOR = "voltage_sensor"      # optional — for overvoltage prior
 CONF_GRID_POSITIVE_IS_EXPORT = "grid_positive_is_export"
 CONF_BOILER1_NAME = "boiler1_name"
 CONF_BOILER2_NAME = "boiler2_name"
+CONF_POWER_SENSOR_1 = "power_sensor_1"   # optional — real power sensor for boiler 1
+CONF_POWER_SENSOR_2 = "power_sensor_2"   # optional — real power sensor for boiler 2
 
 # Options keys (runtime-adjustable settings)
 CONF_MAX_TEMP_1 = "max_temp_1"

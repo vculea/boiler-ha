@@ -8,9 +8,11 @@
           "boiler1_name": "Boiler 1 Name",
           "relay_1": "Boiler 1 Relay (Shelly switch)",
           "temp_sensor_1": "Boiler 1 Temperature Sensor",
+          "power_sensor_1": "Boiler 1 Real Power Sensor (W) — optional",
           "boiler2_name": "Boiler 2 Name",
           "relay_2": "Boiler 2 Relay (Shelly switch)",
-          "temp_sensor_2": "Boiler 2 Temperature Sensor"
+          "temp_sensor_2": "Boiler 2 Temperature Sensor",
+          "power_sensor_2": "Boiler 2 Real Power Sensor (W) — optional"
         }
       },
       "solar": {

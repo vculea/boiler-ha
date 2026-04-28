@@ -8,12 +8,11 @@
           "boiler1_name": "Nume Boiler 1",
           "relay_1": "Releu Boiler 1 (switch Shelly)",
           "temp_sensor_1": "Senzor temperatură Boiler 1",
+          "power_sensor_1": "Senzor consum real Boiler 1 (W) — opțional",
           "boiler2_name": "Nume Boiler 2",
           "relay_2": "Releu Boiler 2 (switch Shelly)",
-          "temp_sensor_2": "Senzor temperatură Boiler 2"
-        }
-      },
-      "solar": {
+          "temp_sensor_2": "Senzor temperatură Boiler 2",
+          "power_sensor_2": "Senzor consum real Boiler 2 (W) — opțional"
         "title": "Configurare panouri fotovoltaice",
         "description": "Selectează senzorii Shelly EM pentru producție solară și rețea.",
         "data": {
@@ -41,9 +40,11 @@
           "boiler1_name": "Nume Boiler 1",
           "relay_1": "Releu Boiler 1 (switch Shelly)",
           "temp_sensor_1": "Senzor temperatură Boiler 1",
+          "power_sensor_1": "Senzor consum real Boiler 1 (W) — opțional",
           "boiler2_name": "Nume Boiler 2",
           "relay_2": "Releu Boiler 2 (switch Shelly)",
           "temp_sensor_2": "Senzor temperatură Boiler 2",
+          "power_sensor_2": "Senzor consum real Boiler 2 (W) — opțional",
           "solar_sensor": "Senzor producție solară (W)",
           "grid_sensor": "Senzor rețea (import/export W)",
           "grid_convention": "Convenție senzor rețea",
