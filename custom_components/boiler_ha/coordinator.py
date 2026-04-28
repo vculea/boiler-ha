@@ -31,6 +31,7 @@ from .const import (
     CONF_TEMP_SENSOR_2,
     CONF_SOLAR_SENSOR,
     CONF_GRID_SENSOR,
+    CONF_VOLTAGE_SENSOR,
     CONF_GRID_POSITIVE_IS_EXPORT,
     CONF_MAX_TEMP_1,
     CONF_MAX_TEMP_2,
@@ -42,7 +43,10 @@ from .const import (
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
+    DEFAULT_PRIORITY_VOLTAGE,
+    TEMP_BALANCE_MAX_DIFF,
     STATUS_HEATING,
+    STATUS_PRIORITY,
     STATUS_STANDBY,
     STATUS_TARGET_REACHED,
     STATUS_NO_SOLAR,
@@ -86,6 +90,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
             cfg[CONF_TEMP_SENSOR_1],
             cfg[CONF_TEMP_SENSOR_2],
         ]
+        voltage_sensor = cfg.get(CONF_VOLTAGE_SENSOR)
+        if voltage_sensor:
+            watch.append(voltage_sensor)
 
         @callback
         def _state_changed(event) -> None:  # noqa: ANN001
@@ -206,36 +213,67 @@ class BoilerCoordinator(DataUpdateCoordinator):
             await self._set_switch(relay_2, False)
             boiler2_on = False
 
-        # --- Auto control: Boiler 1 (has priority) ---
+        # --- Priority mode detection ---
+        # Condition 1: boiler temp below 50% of target  → force heating regardless of surplus
+        # Condition 2: grid voltage > DEFAULT_PRIORITY_VOLTAGE → force heating (overvoltage protection)
+        voltage_sensor = cfg.get(CONF_VOLTAGE_SENSOR)
+        grid_voltage = self._float_state(voltage_sensor) if voltage_sensor else None
+        high_voltage = grid_voltage is not None and grid_voltage > DEFAULT_PRIORITY_VOLTAGE
+
+        b1_priority = (temp1 is not None and temp1 < max_temp_1 * 0.5) or high_voltage
+        b2_priority = (temp2 is not None and temp2 < max_temp_2 * 0.5) or high_voltage
+
+        # Balance: in priority mode, if one boiler is >TEMP_BALANCE_MAX_DIFF°C hotter, hold it back
+        b1_held_back = False
+        b2_held_back = False
+        if temp1 is not None and temp2 is not None:
+            diff = temp1 - temp2
+            if diff > TEMP_BALANCE_MAX_DIFF:
+                b1_held_back = True   # boiler1 too hot vs boiler2 — let boiler2 catch up
+            elif diff < -TEMP_BALANCE_MAX_DIFF:
+                b2_held_back = True   # boiler2 too hot vs boiler1 — let boiler1 catch up
+
+        _LOGGER.debug(
+            "Priority — B1_prio=%s held=%s  B2_prio=%s held=%s  voltage=%.1fV",
+            b1_priority, b1_held_back, b2_priority, b2_held_back, grid_voltage or 0,
+        )
+
+        # --- Auto control: Boiler 1 (has priority over B2 in solar mode) ---
         if auto_1 and temp1 is not None:
-            should_run_1 = (virtual_surplus >= min_surplus) and (temp1 < max_temp_1)
+            if b1_priority and not b1_held_back:
+                should_run_1 = temp1 < max_temp_1   # ignore surplus
+            else:
+                should_run_1 = (virtual_surplus >= min_surplus) and (temp1 < max_temp_1)
             if should_run_1 and not boiler1_on:
                 _LOGGER.info(
-                    "Pornire Boiler 1 — surplus=%.0fW temp=%.1f°C", virtual_surplus, temp1
+                    "Pornire Boiler 1 — surplus=%.0fW temp=%.1f°C priority=%s",
+                    virtual_surplus, temp1, b1_priority,
                 )
                 await self._set_switch(relay_1, True)
                 boiler1_on = True
             elif not should_run_1 and boiler1_on:
                 _LOGGER.info(
-                    "Oprire Boiler 1 — surplus=%.0fW temp=%.1f°C", virtual_surplus, temp1
+                    "Oprire Boiler 1 — surplus=%.0fW temp=%.1f°C priority=%s",
+                    virtual_surplus, temp1, b1_priority,
                 )
                 await self._set_switch(relay_1, False)
                 boiler1_on = False
 
-        # --- Auto control: Boiler 2 (starts only if enough surplus remains after B1) ---
+        # --- Auto control: Boiler 2 ---
         if auto_2 and temp2 is not None:
-            surplus_after_b1 = virtual_surplus - (boiler1_power if boiler1_on else 0)
-            should_run_2 = (surplus_after_b1 >= min_surplus) and (temp2 < max_temp_2)
+            if b2_priority and not b2_held_back:
+                should_run_2 = temp2 < max_temp_2   # ignore surplus
+            else:
+                surplus_after_b1 = virtual_surplus - (boiler1_power if boiler1_on else 0)
+                should_run_2 = (surplus_after_b1 >= min_surplus) and (temp2 < max_temp_2)
             if should_run_2 and not boiler2_on:
                 _LOGGER.info(
-                    "Pornire Boiler 2 — surplus_rămas=%.0fW temp=%.1f°C",
-                    surplus_after_b1, temp2,
+                    "Pornire Boiler 2 — temp=%.1f°C priority=%s", temp2, b2_priority,
                 )
                 await self._set_switch(relay_2, True)
             elif not should_run_2 and boiler2_on:
                 _LOGGER.info(
-                    "Oprire Boiler 2 — surplus_rămas=%.0fW temp=%.1f°C",
-                    surplus_after_b1, temp2,
+                    "Oprire Boiler 2 — temp=%.1f°C priority=%s", temp2, b2_priority,
                 )
                 await self._set_switch(relay_2, False)
 
@@ -276,7 +314,14 @@ class BoilerCoordinator(DataUpdateCoordinator):
         max_temp_2 = rt.get(CONF_MAX_TEMP_2, DEFAULT_MAX_TEMP)
         solar_producing = (solar or 0.0) > 50.0
 
-        def _status(boiler_on: bool, temp: float | None, max_temp: float, auto: bool) -> str:
+        voltage_sensor = cfg.get(CONF_VOLTAGE_SENSOR)
+        grid_voltage = self._float_state(voltage_sensor) if voltage_sensor else None
+        high_voltage = grid_voltage is not None and grid_voltage > DEFAULT_PRIORITY_VOLTAGE
+
+        b1_priority = (temp1 is not None and temp1 < max_temp_1 * 0.5) or high_voltage
+        b2_priority = (temp2 is not None and temp2 < max_temp_2 * 0.5) or high_voltage
+
+        def _status(boiler_on: bool, temp: float | None, max_temp: float, auto: bool, priority: bool) -> str:
             if not auto:
                 return STATUS_MANUAL
             if temp is None:
@@ -284,8 +329,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
             if temp >= max_temp:
                 return STATUS_TARGET_REACHED
             if boiler_on:
-                return STATUS_HEATING
-            if not solar_producing:
+                return STATUS_PRIORITY if priority else STATUS_HEATING
+            if not solar_producing and not priority:
                 return STATUS_NO_SOLAR
             return STATUS_STANDBY
 
@@ -296,6 +341,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
             "boiler2_on": boiler2_on,
             "solar_power": solar,
             "grid_export": grid_export,
-            "boiler1_status": _status(boiler1_on, temp1, max_temp_1, auto_1),
-            "boiler2_status": _status(boiler2_on, temp2, max_temp_2, auto_2),
+            "grid_voltage": grid_voltage,
+            "boiler1_status": _status(boiler1_on, temp1, max_temp_1, auto_1, b1_priority),
+            "boiler2_status": _status(boiler2_on, temp2, max_temp_2, auto_2, b2_priority),
         }

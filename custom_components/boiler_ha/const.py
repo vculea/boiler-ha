@@ -9,6 +9,7 @@ CONF_TEMP_SENSOR_1 = "temp_sensor_1"
 CONF_TEMP_SENSOR_2 = "temp_sensor_2"
 CONF_SOLAR_SENSOR = "solar_sensor"
 CONF_GRID_SENSOR = "grid_sensor"
+CONF_VOLTAGE_SENSOR = "voltage_sensor"      # optional — for overvoltage priority
 CONF_GRID_POSITIVE_IS_EXPORT = "grid_positive_is_export"
 CONF_BOILER1_NAME = "boiler1_name"
 CONF_BOILER2_NAME = "boiler2_name"
@@ -25,15 +26,18 @@ RUNTIME_AUTO_1 = "auto_1"
 RUNTIME_AUTO_2 = "auto_2"
 
 # Default values
-DEFAULT_MAX_TEMP = 90.0       # °C
-DEFAULT_MIN_SURPLUS = 500.0   # W — minimum surplus before starting any boiler
-DEFAULT_BOILER_POWER = 2000.0 # W — estimated rated power of one resistance
+DEFAULT_MAX_TEMP = 90.0          # °C
+DEFAULT_MIN_SURPLUS = 800.0      # W — minimum surplus before starting any boiler
+DEFAULT_BOILER_POWER = 1500.0    # W — estimated rated power of one resistance
+DEFAULT_PRIORITY_VOLTAGE = 250.0 # V — grid voltage above which priority heating is forced
+TEMP_BALANCE_MAX_DIFF = 5.0      # °C — max allowed temperature difference between boilers in priority mode
 
 # Platforms
 PLATFORMS = ["switch", "number", "sensor"]
 
 # Status strings (used by sensor entities)
 STATUS_HEATING = "Încălzire"
+STATUS_PRIORITY = "Prioritate încălzire"
 STATUS_STANDBY = "Standby"
 STATUS_TARGET_REACHED = "Temperatură atinsă"
 STATUS_NO_SOLAR = "Fără producție solară"

@@ -19,7 +19,8 @@
         "data": {
           "solar_sensor": "Senzor producție solară (W)",
           "grid_sensor": "Senzor rețea (import/export W)",
-          "grid_convention": "Convenție senzor rețea (export=pozitiv la rețea / import=pozitiv din rețea)"
+          "grid_convention": "Convenție senzor rețea (export=pozitiv la rețea / import=pozitiv din rețea)",
+          "voltage_sensor": "Senzor tensiune rețea (V) — opțional, pentru prioritate la tensiune >250V"
         }
       },
       "settings": {
@@ -45,7 +46,8 @@
           "temp_sensor_2": "Senzor temperatură Boiler 2",
           "solar_sensor": "Senzor producție solară (W)",
           "grid_sensor": "Senzor rețea (import/export W)",
-          "grid_convention": "Convenție senzor rețea"
+          "grid_convention": "Convenție senzor rețea",
+          "voltage_sensor": "Senzor tensiune rețea (V) — opțional"
         }
       }
     },

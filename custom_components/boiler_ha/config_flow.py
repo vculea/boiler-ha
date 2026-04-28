@@ -42,6 +42,7 @@ from .const import (
     CONF_TEMP_SENSOR_2,
     CONF_SOLAR_SENSOR,
     CONF_GRID_SENSOR,
+    CONF_VOLTAGE_SENSOR,
     CONF_GRID_POSITIVE_IS_EXPORT,
     CONF_BOILER1_NAME,
     CONF_BOILER2_NAME,
@@ -113,6 +114,9 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._data[CONF_GRID_POSITIVE_IS_EXPORT] = (
                     user_input["grid_convention"] == "export"
                 )
+                voltage = user_input.get(CONF_VOLTAGE_SENSOR)
+                if voltage:
+                    self._data[CONF_VOLTAGE_SENSOR] = voltage
                 return await self.async_step_settings()
 
         schema = vol.Schema(
@@ -124,6 +128,9 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         options=_GRID_CONVENTION_OPTIONS,
                         mode=SelectSelectorMode.LIST,
                     )
+                ),
+                vol.Optional(CONF_VOLTAGE_SENSOR): EntitySelector(
+                    EntitySelectorConfig(domain="sensor", device_class="voltage")
                 ),
             }
         )
@@ -216,6 +223,9 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_GRID_SENSOR, default=current.get(CONF_GRID_SENSOR)): EntitySelector(EntitySelectorConfig(domain="sensor")),
                 vol.Required("grid_convention", default="export" if current.get(CONF_GRID_POSITIVE_IS_EXPORT, True) else "import"): SelectSelector(
                     SelectSelectorConfig(options=_GRID_CONVENTION_OPTIONS, mode=SelectSelectorMode.LIST)
+                ),
+                vol.Optional(CONF_VOLTAGE_SENSOR, default=current.get(CONF_VOLTAGE_SENSOR)): EntitySelector(
+                    EntitySelectorConfig(domain="sensor", device_class="voltage")
                 ),
             }
         )

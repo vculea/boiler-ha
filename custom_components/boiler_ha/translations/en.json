@@ -19,7 +19,8 @@
         "data": {
           "solar_sensor": "Solar Production Sensor (W)",
           "grid_sensor": "Grid Sensor (import/export W)",
-          "grid_convention": "Grid Sensor Convention"
+          "grid_convention": "Grid Sensor Convention",
+          "voltage_sensor": "Grid Voltage Sensor (V) — optional, enables priority heating above 250V"
         }
       },
       "settings": {
