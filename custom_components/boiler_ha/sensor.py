@@ -24,6 +24,7 @@ from .const import (
     CONF_BOILER1_NAME,
     CONF_BOILER2_NAME,
     CONF_VOLTAGE_SENSOR,
+    DEFAULT_PRIORITY_VOLTAGE,
 )
 from .coordinator import BoilerCoordinator
 
@@ -37,18 +38,21 @@ async def async_setup_entry(
     b1 = entry.data.get(CONF_BOILER1_NAME, "Boiler 1")
     b2 = entry.data.get(CONF_BOILER2_NAME, "Boiler 2")
 
+    # Order: 1) grid/solar  2) boiler temps + consumption  3) status
     entities = [
-        BoilerStatusSensor(coordinator, entry, b1, "boiler1_status", "1"),
-        BoilerStatusSensor(coordinator, entry, b2, "boiler2_status", "2"),
-        BoilerTemperatureSensor(coordinator, entry, b1, "boiler1_temp", "1"),
-        BoilerTemperatureSensor(coordinator, entry, b2, "boiler2_temp", "2"),
-        BoilerPowerConsumptionSensor(coordinator, entry, b1, "boiler1_power_consumption", "1"),
-        BoilerPowerConsumptionSensor(coordinator, entry, b2, "boiler2_power_consumption", "2"),
         SolarProductionSensor(coordinator, entry),
         GridPowerSensor(coordinator, entry),
     ]
     if entry.data.get(CONF_VOLTAGE_SENSOR):
         entities.append(GridVoltageSensor(coordinator, entry))
+    entities += [
+        BoilerTemperatureSensor(coordinator, entry, b1, "boiler1_temp", "1"),
+        BoilerTemperatureSensor(coordinator, entry, b2, "boiler2_temp", "2"),
+        BoilerPowerConsumptionSensor(coordinator, entry, b1, "boiler1_power_consumption", "1"),
+        BoilerPowerConsumptionSensor(coordinator, entry, b2, "boiler2_power_consumption", "2"),
+        BoilerStatusSensor(coordinator, entry, b1, "boiler1_status", "1"),
+        BoilerStatusSensor(coordinator, entry, b2, "boiler2_status", "2"),
+    ]
     async_add_entities(entities)
 
 
@@ -202,7 +206,6 @@ class GridPowerSensor(_BoilerSensor):
     """Shows grid power: positive = consuming from grid, negative = injecting to grid."""
 
     _attr_name = "Rețea (consum/injecție)"
-    _attr_icon = "mdi:transmission-tower"
     _attr_native_unit_of_measurement = UnitOfPower.WATT
     _attr_device_class = SensorDeviceClass.POWER
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -210,6 +213,17 @@ class GridPowerSensor(_BoilerSensor):
     def __init__(self, coordinator: BoilerCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
         self._attr_unique_id = f"{entry.entry_id}_grid_power"
+
+    @property
+    def icon(self) -> str:
+        val = self.native_value
+        if val is None:
+            return "mdi:transmission-tower"
+        if val > 0:
+            return "mdi:transmission-tower-import"   # consuming — red indicator
+        if val < 0:
+            return "mdi:transmission-tower-export"   # exporting surplus — green indicator
+        return "mdi:transmission-tower"
 
     @property
     def native_value(self) -> float | None:
@@ -244,7 +258,6 @@ class GridVoltageSensor(_BoilerSensor):
     """Shows the grid voltage in volts (mirrors the configured voltage sensor)."""
 
     _attr_name = "Tensiune rețea"
-    _attr_icon = "mdi:lightning-bolt"
     _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
     _attr_device_class = SensorDeviceClass.VOLTAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -252,6 +265,13 @@ class GridVoltageSensor(_BoilerSensor):
     def __init__(self, coordinator: BoilerCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
         self._attr_unique_id = f"{entry.entry_id}_grid_voltage"
+
+    @property
+    def icon(self) -> str:
+        val = self.native_value
+        if val is not None and val > DEFAULT_PRIORITY_VOLTAGE:
+            return "mdi:lightning-bolt-circle"   # overvoltage — warning indicator
+        return "mdi:lightning-bolt"
 
     @property
     def native_value(self) -> float | None:

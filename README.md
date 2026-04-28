@@ -1,5 +1,7 @@
 # Boiler Solar Controller — Home Assistant Custom Integration
 
+![Boiler Solar Controller](images/logo.svg)
+
 Integrare personalizată pentru Home Assistant care controlează automat două boilere electrice pe baza surplusului de energie solară. Când panourile fotovoltaice produc mai mult decât consumi, integrarea pornește rezistențele boilerelor ca să folosești energia gratuită în loc să o injectezi în rețea.
 
 ---
