@@ -28,6 +28,8 @@ RUNTIME_AUTO_1 = "auto_1"
 RUNTIME_AUTO_2 = "auto_2"
 RUNTIME_LAST_MAX_TEMP_1 = "last_max_temp_1"
 RUNTIME_LAST_MAX_TEMP_2 = "last_max_temp_2"
+RUNTIME_USER_MAX_TEMP_1 = "user_max_temp_1"  # saves original target during voltage boost
+RUNTIME_USER_MAX_TEMP_2 = "user_max_temp_2"
 
 # Default values
 DEFAULT_MAX_TEMP = 90.0          # °C
