@@ -7,12 +7,13 @@ Provides:
   - sensor.boiler2_temp        — temperature Boiler 2 (°C)
   - sensor.solar_production    — raw solar panel production (W)
   - sensor.grid_power          — grid power: positive=import, negative=export
+  - sensor.grid_voltage        — grid voltage (V), optional
 """
 from __future__ import annotations
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfPower, UnitOfTemperature
+from homeassistant.const import UnitOfPower, UnitOfTemperature, UnitOfElectricPotential
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -22,6 +23,7 @@ from .const import (
     DOMAIN,
     CONF_BOILER1_NAME,
     CONF_BOILER2_NAME,
+    CONF_VOLTAGE_SENSOR,
 )
 from .coordinator import BoilerCoordinator
 
@@ -35,16 +37,17 @@ async def async_setup_entry(
     b1 = entry.data.get(CONF_BOILER1_NAME, "Boiler 1")
     b2 = entry.data.get(CONF_BOILER2_NAME, "Boiler 2")
 
-    async_add_entities(
-        [
-            BoilerStatusSensor(coordinator, entry, b1, "boiler1_status", "1"),
-            BoilerStatusSensor(coordinator, entry, b2, "boiler2_status", "2"),
-            BoilerTemperatureSensor(coordinator, entry, b1, "boiler1_temp", "1"),
-            BoilerTemperatureSensor(coordinator, entry, b2, "boiler2_temp", "2"),
-            SolarProductionSensor(coordinator, entry),
-            GridPowerSensor(coordinator, entry),
-        ]
-    )
+    entities = [
+        BoilerStatusSensor(coordinator, entry, b1, "boiler1_status", "1"),
+        BoilerStatusSensor(coordinator, entry, b2, "boiler2_status", "2"),
+        BoilerTemperatureSensor(coordinator, entry, b1, "boiler1_temp", "1"),
+        BoilerTemperatureSensor(coordinator, entry, b2, "boiler2_temp", "2"),
+        SolarProductionSensor(coordinator, entry),
+        GridPowerSensor(coordinator, entry),
+    ]
+    if entry.data.get(CONF_VOLTAGE_SENSOR):
+        entities.append(GridVoltageSensor(coordinator, entry))
+    async_add_entities(entities)
 
 
 # ── Device info mixin ─────────────────────────────────────────────────────────
@@ -201,3 +204,25 @@ class GridPowerSensor(_BoilerSensor):
         else:
             status = "Echilibrat"
         return {"status": status}
+
+
+# ── Grid voltage sensor ─────────────────────────────────────────────
+
+class GridVoltageSensor(_BoilerSensor):
+    """Shows the grid voltage in volts (mirrors the configured voltage sensor)."""
+
+    _attr_name = "Tensiune rețea"
+    _attr_icon = "mdi:lightning-bolt"
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
+    _attr_device_class = SensorDeviceClass.VOLTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: BoilerCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_grid_voltage"
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.get("grid_voltage")
