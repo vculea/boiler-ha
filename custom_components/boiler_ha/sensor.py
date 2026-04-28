@@ -42,6 +42,8 @@ async def async_setup_entry(
         BoilerStatusSensor(coordinator, entry, b2, "boiler2_status", "2"),
         BoilerTemperatureSensor(coordinator, entry, b1, "boiler1_temp", "1"),
         BoilerTemperatureSensor(coordinator, entry, b2, "boiler2_temp", "2"),
+        BoilerPowerConsumptionSensor(coordinator, entry, b1, "boiler1_power_consumption", "1"),
+        BoilerPowerConsumptionSensor(coordinator, entry, b2, "boiler2_power_consumption", "2"),
         SolarProductionSensor(coordinator, entry),
         GridPowerSensor(coordinator, entry),
     ]
@@ -110,6 +112,36 @@ class BoilerStatusSensor(_BoilerSensor):
         }
 
 
+
+
+# ── Boiler power consumption sensor ─────────────────────────────────────────
+
+class BoilerPowerConsumptionSensor(_BoilerSensor):
+    """Shows the current power consumption of one boiler (rated power when ON, 0 when OFF)."""
+
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_icon = "mdi:heating-coil"
+
+    def __init__(
+        self,
+        coordinator: BoilerCoordinator,
+        entry: ConfigEntry,
+        boiler_name: str,
+        data_key: str,
+        boiler_index: str,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._data_key = data_key
+        self._attr_unique_id = f"{entry.entry_id}_power_consumption_{boiler_index}"
+        self._attr_name = f"Consum {boiler_name}"
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.get(self._data_key)
 
 
 # ── Boiler temperature sensor ─────────────────────────────────────────────────

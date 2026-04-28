@@ -40,11 +40,14 @@ from .const import (
     CONF_BOILER2_POWER,
     RUNTIME_AUTO_1,
     RUNTIME_AUTO_2,
+    RUNTIME_LAST_MAX_TEMP_1,
+    RUNTIME_LAST_MAX_TEMP_2,
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
     DEFAULT_PRIORITY_VOLTAGE,
     TEMP_BALANCE_MAX_DIFF,
+    TEMP_HYSTERESIS,
     STATUS_HEATING,
     STATUS_PRIORITY,
     STATUS_STANDBY,
@@ -242,11 +245,19 @@ class BoilerCoordinator(DataUpdateCoordinator):
         )
 
         # --- Auto control: Boiler 1 (has priority over B2 in solar mode) ---
+        # Hysteresis: if boiler is ON keep running until max_temp; if OFF don't start
+        # until temp drops TEMP_HYSTERESIS degrees below the target.
+        # Bypass hysteresis if target was just changed or high-voltage priority is active.
+        last_max_temp_1: float = rt.get(RUNTIME_LAST_MAX_TEMP_1, max_temp_1)
+        target_changed_1 = max_temp_1 != last_max_temp_1
+        bypass_hyst_1 = target_changed_1 or high_voltage
+        rt[RUNTIME_LAST_MAX_TEMP_1] = max_temp_1
         if auto_1 and temp1 is not None:
+            temp_ok_1 = temp1 < max_temp_1 if (boiler1_on or bypass_hyst_1) else temp1 < (max_temp_1 - TEMP_HYSTERESIS)
             if b1_priority and not b1_held_back:
-                should_run_1 = temp1 < max_temp_1   # ignore surplus
+                should_run_1 = temp_ok_1   # ignore surplus
             else:
-                should_run_1 = (virtual_surplus >= min_surplus) and (temp1 < max_temp_1)
+                should_run_1 = (virtual_surplus >= min_surplus) and temp_ok_1
             if should_run_1 and not boiler1_on:
                 _LOGGER.info(
                     "Pornire Boiler 1 — surplus=%.0fW temp=%.1f°C priority=%s",
@@ -263,12 +274,17 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 boiler1_on = False
 
         # --- Auto control: Boiler 2 ---
+        last_max_temp_2: float = rt.get(RUNTIME_LAST_MAX_TEMP_2, max_temp_2)
+        target_changed_2 = max_temp_2 != last_max_temp_2
+        bypass_hyst_2 = target_changed_2 or high_voltage
+        rt[RUNTIME_LAST_MAX_TEMP_2] = max_temp_2
         if auto_2 and temp2 is not None:
+            temp_ok_2 = temp2 < max_temp_2 if (boiler2_on or bypass_hyst_2) else temp2 < (max_temp_2 - TEMP_HYSTERESIS)
             if b2_priority and not b2_held_back:
-                should_run_2 = temp2 < max_temp_2   # ignore surplus
+                should_run_2 = temp_ok_2   # ignore surplus
             else:
                 surplus_after_b1 = virtual_surplus - (boiler1_power if boiler1_on else 0)
-                should_run_2 = (surplus_after_b1 >= min_surplus) and (temp2 < max_temp_2)
+                should_run_2 = (surplus_after_b1 >= min_surplus) and temp_ok_2
             if should_run_2 and not boiler2_on:
                 _LOGGER.info(
                     "Pornire Boiler 2 — temp=%.1f°C priority=%s", temp2, b2_priority,
@@ -315,6 +331,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
 
         max_temp_1 = rt.get(CONF_MAX_TEMP_1, DEFAULT_MAX_TEMP)
         max_temp_2 = rt.get(CONF_MAX_TEMP_2, DEFAULT_MAX_TEMP)
+        boiler1_power: float = rt.get(CONF_BOILER1_POWER, DEFAULT_BOILER_POWER)
+        boiler2_power: float = rt.get(CONF_BOILER2_POWER, DEFAULT_BOILER_POWER)
         solar_producing = (solar or 0.0) > 50.0
 
         voltage_sensor = cfg.get(CONF_VOLTAGE_SENSOR)
@@ -342,6 +360,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
             "boiler2_temp": temp2,
             "boiler1_on": boiler1_on,
             "boiler2_on": boiler2_on,
+            "boiler1_power_consumption": boiler1_power if boiler1_on else 0.0,
+            "boiler2_power_consumption": boiler2_power if boiler2_on else 0.0,
             "solar_power": solar,
             "grid_export": grid_export,
             "grid_voltage": grid_voltage,

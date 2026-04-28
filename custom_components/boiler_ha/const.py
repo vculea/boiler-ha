@@ -24,6 +24,8 @@ CONF_BOILER2_POWER = "boiler2_power"
 # hass.data runtime keys
 RUNTIME_AUTO_1 = "auto_1"
 RUNTIME_AUTO_2 = "auto_2"
+RUNTIME_LAST_MAX_TEMP_1 = "last_max_temp_1"
+RUNTIME_LAST_MAX_TEMP_2 = "last_max_temp_2"
 
 # Default values
 DEFAULT_MAX_TEMP = 90.0          # °C
@@ -31,6 +33,7 @@ DEFAULT_MIN_SURPLUS = 800.0      # W — minimum surplus before starting any boi
 DEFAULT_BOILER_POWER = 1500.0    # W — estimated rated power of one resistance
 DEFAULT_PRIORITY_VOLTAGE = 250.0 # V — grid voltage above which priority heating is forced
 TEMP_BALANCE_MAX_DIFF = 5.0      # °C — max allowed temperature difference between boilers in priority mode
+TEMP_HYSTERESIS = 5.0            # °C — boiler won't restart until temp drops this far below target
 
 # Platforms
 PLATFORMS = ["switch", "number", "sensor"]
