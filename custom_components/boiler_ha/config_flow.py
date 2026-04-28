@@ -129,7 +129,7 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         mode=SelectSelectorMode.LIST,
                     )
                 ),
-                vol.Optional(CONF_VOLTAGE_SENSOR): EntitySelector(
+                vol.Optional(CONF_VOLTAGE_SENSOR, description={"suggested_value": None}): EntitySelector(
                     EntitySelectorConfig(domain="sensor")
                 ),
             }
