@@ -12,6 +12,7 @@ Integrare personalizată pentru Home Assistant care controlează automat două b
 - [Instalare](#instalare)
 - [Configurare (setup wizard)](#configurare)
 - [Setări ajustabile din dashboard](#setari-ajustabile)
+- [Teste](#teste)
 
 ---
 
@@ -162,6 +163,44 @@ Toate valorile de mai jos pot fi modificate live din dashboard (entitățile `nu
 | Putere nominală Boiler 1/2    | 1500 W   | Puterea rezistenței, folosită în calculul surplusului virtual și ca fallback pentru consum |
 
 > **Histerezis**: după atingerea temperaturii maxime, boilerul nu repornește decât când temperatura scade cu 5 °C sub țintă. Histerezisul e ignorat automat dacă targetul e modificat de user sau dacă e activă prioritatea de tensiune mare.
+
+---
+
+## Teste
+
+Testele nu necesită o instalare completă de Home Assistant. Modulele HA sunt stub-uite automat prin `tests/conftest.py`.
+
+### Rulare rapidă (recomandat — folosește `uv`)
+
+```bash
+uv run --with pytest --with pytest-asyncio python -m pytest tests/ -v
+```
+
+### Rulare cu un virtualenv existent
+
+```bash
+pip install -r requirements_test.txt
+python -m pytest tests/ -v
+```
+
+### Structura testelor
+
+```
+tests/
+  conftest.py              — stub-uri pentru modulele homeassistant
+  test_voltage_boost.py    — logica de boost target la supratensiune
+```
+
+### Ce acoperă testele actuale
+
+| Test                                   | Comportament verificat                                        |
+| -------------------------------------- | ------------------------------------------------------------- |
+| `test_boost_activates_...`             | Target crește cu +5 °C la supratensiune + temp atinsă         |
+| `test_boost_caps_...`                  | Nu depășește 90 °C (ex. 88+5 → 90, nu 93)                     |
+| `test_no_boost_when_temp_below_target` | Fără boost dacă temperatura nu a atins targetul               |
+| `test_no_boost_when_voltage_normal`    | Fără boost la tensiune normală (<250 V)                       |
+| `test_no_double_boost`                 | Al doilea ciclu sub supratensiune nu mai boostează            |
+| `test_restore_on_voltage_drop`         | Targetul original e restaurat când tensiunea revine la normal |
 
 ---
 
