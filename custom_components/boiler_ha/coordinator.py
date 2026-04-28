@@ -50,6 +50,7 @@ from .const import (
     DEFAULT_PRIORITY_VOLTAGE,
     TEMP_BALANCE_MAX_DIFF,
     TEMP_HYSTERESIS,
+    VOLTAGE_OVERHEAT_BOOST,
     STATUS_HEATING,
     STATUS_PRIORITY,
     STATUS_STANDBY,
@@ -212,13 +213,13 @@ class BoilerCoordinator(DataUpdateCoordinator):
         )
 
         # --- Temperature protection (always enforced, ignores auto flag) ---
-        if temp1 is not None and temp1 >= max_temp_1 and boiler1_on:
-            _LOGGER.info("Boiler 1 a atins %.1f°C — oprire releu", max_temp_1)
+        if temp1 is not None and temp1 >= effective_max_1 and boiler1_on:
+            _LOGGER.info("Boiler 1 a atins %.1f°C — oprire releu", effective_max_1)
             await self._set_switch(relay_1, False)
             boiler1_on = False
 
-        if temp2 is not None and temp2 >= max_temp_2 and boiler2_on:
-            _LOGGER.info("Boiler 2 a atins %.1f°C — oprire releu", max_temp_2)
+        if temp2 is not None and temp2 >= effective_max_2 and boiler2_on:
+            _LOGGER.info("Boiler 2 a atins %.1f°C — oprire releu", effective_max_2)
             await self._set_switch(relay_2, False)
             boiler2_on = False
 
@@ -228,8 +229,13 @@ class BoilerCoordinator(DataUpdateCoordinator):
         grid_voltage = self._float_state(voltage_sensor) if voltage_sensor else None
         high_voltage = grid_voltage is not None and grid_voltage > DEFAULT_PRIORITY_VOLTAGE
 
-        b1_priority = (temp1 is not None and temp1 < max_temp_1 * 0.5) or high_voltage
-        b2_priority = (temp2 is not None and temp2 < max_temp_2 * 0.5) or high_voltage
+        # During overvoltage raise the effective target by VOLTAGE_OVERHEAT_BOOST so boilers
+        # keep running to absorb excess energy, capped at DEFAULT_MAX_TEMP (90 °C).
+        effective_max_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP) if high_voltage else max_temp_1
+        effective_max_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP) if high_voltage else max_temp_2
+
+        b1_priority = (temp1 is not None and temp1 < effective_max_1 * 0.5) or high_voltage
+        b2_priority = (temp2 is not None and temp2 < effective_max_2 * 0.5) or high_voltage
 
         # Balance: in priority mode, if one boiler is >TEMP_BALANCE_MAX_DIFF°C hotter, hold it back
         b1_held_back = False
@@ -255,7 +261,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         bypass_hyst_1 = target_changed_1 or high_voltage
         rt[RUNTIME_LAST_MAX_TEMP_1] = max_temp_1
         if auto_1 and temp1 is not None:
-            temp_ok_1 = temp1 < max_temp_1 if (boiler1_on or bypass_hyst_1) else temp1 < (max_temp_1 - TEMP_HYSTERESIS)
+            temp_ok_1 = temp1 < effective_max_1 if (boiler1_on or bypass_hyst_1) else temp1 < (effective_max_1 - TEMP_HYSTERESIS)
             if b1_priority and not b1_held_back:
                 should_run_1 = temp_ok_1   # ignore surplus
             else:
@@ -281,7 +287,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         bypass_hyst_2 = target_changed_2 or high_voltage
         rt[RUNTIME_LAST_MAX_TEMP_2] = max_temp_2
         if auto_2 and temp2 is not None:
-            temp_ok_2 = temp2 < max_temp_2 if (boiler2_on or bypass_hyst_2) else temp2 < (max_temp_2 - TEMP_HYSTERESIS)
+            temp_ok_2 = temp2 < effective_max_2 if (boiler2_on or bypass_hyst_2) else temp2 < (effective_max_2 - TEMP_HYSTERESIS)
             if b2_priority and not b2_held_back:
                 should_run_2 = temp_ok_2   # ignore surplus
             else:
@@ -353,8 +359,11 @@ class BoilerCoordinator(DataUpdateCoordinator):
         grid_voltage = self._float_state(voltage_sensor) if voltage_sensor else None
         high_voltage = grid_voltage is not None and grid_voltage > DEFAULT_PRIORITY_VOLTAGE
 
-        b1_priority = (temp1 is not None and temp1 < max_temp_1 * 0.5) or high_voltage
-        b2_priority = (temp2 is not None and temp2 < max_temp_2 * 0.5) or high_voltage
+        effective_max_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP) if high_voltage else max_temp_1
+        effective_max_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP) if high_voltage else max_temp_2
+
+        b1_priority = (temp1 is not None and temp1 < effective_max_1 * 0.5) or high_voltage
+        b2_priority = (temp2 is not None and temp2 < effective_max_2 * 0.5) or high_voltage
 
         def _status(boiler_on: bool, temp: float | None, max_temp: float, auto: bool, priority: bool) -> str:
             if not auto:
@@ -379,6 +388,6 @@ class BoilerCoordinator(DataUpdateCoordinator):
             "solar_power": solar,
             "grid_export": grid_export,
             "grid_voltage": grid_voltage,
-            "boiler1_status": _status(boiler1_on, temp1, max_temp_1, auto_1, b1_priority),
-            "boiler2_status": _status(boiler2_on, temp2, max_temp_2, auto_2, b2_priority),
+            "boiler1_status": _status(boiler1_on, temp1, effective_max_1, auto_1, b1_priority),
+            "boiler2_status": _status(boiler2_on, temp2, effective_max_2, auto_2, b2_priority),
         }

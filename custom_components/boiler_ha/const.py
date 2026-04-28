@@ -36,6 +36,7 @@ DEFAULT_BOILER_POWER = 1500.0    # W — estimated rated power of one resistance
 DEFAULT_PRIORITY_VOLTAGE = 250.0 # V — grid voltage above which priority heating is forced
 TEMP_BALANCE_MAX_DIFF = 5.0      # °C — max allowed temperature difference between boilers in priority mode
 TEMP_HYSTERESIS = 5.0            # °C — boiler won't restart until temp drops this far below target
+VOLTAGE_OVERHEAT_BOOST = 5.0   # °C — effective target increase during overvoltage (capped at DEFAULT_MAX_TEMP)
 
 # Platforms
 PLATFORMS = ["switch", "number", "sensor"]
