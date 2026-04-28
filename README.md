@@ -162,3 +162,40 @@ Toate valorile de mai jos pot fi modificate live din dashboard (entitățile `nu
 | Putere nominală Boiler 1/2    | 1500 W   | Puterea rezistenței, folosită în calculul surplusului virtual și ca fallback pentru consum |
 
 > **Histerezis**: după atingerea temperaturii maxime, boilerul nu repornește decât când temperatura scade cu 5 °C sub țintă. Histerezisul e ignorat automat dacă targetul e modificat de user sau dacă e activă prioritatea de tensiune mare.
+
+---
+
+## Release
+
+### Pași pentru publicarea unui release nou
+
+1. **Actualizează versiunea** în `custom_components/boiler_ha/manifest.json`:
+
+   ```json
+   "version": "1.x.y"
+   ```
+
+2. **Commit** modificările:
+
+   ```bash
+   git add .
+   git commit -m "Release v1.x.y"
+   ```
+
+3. **Creează un tag Git** cu același număr de versiune:
+
+   ```bash
+   git tag v1.x.y
+   git push origin main --tags
+   ```
+
+4. **Creează un GitHub Release**:
+   - Mergi la repository → **Releases** → **Draft a new release**
+   - Selectează tag-ul `v1.x.y` creat la pasul anterior
+   - Titlu: `v1.x.y`
+   - Descriere: copiază ce s-a schimbat (din jurnal)
+   - Publică release-ul
+
+5. **HACS** va detecta automat noul release după câteva minute. Utilizatorii cu integrarea instalată vor vedea notificarea de update în HA.
+
+> **Notă**: HACS folosește tag-urile Git ca versiuni. Tag-ul trebuie să coincidă exact cu `version` din `manifest.json` (ex. ambele `1.2.0`, nu `v1.2.0` vs `1.2.0`).
