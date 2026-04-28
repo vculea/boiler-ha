@@ -53,7 +53,9 @@
           "max_temp_2": "Boiler 2 Max Temperature (°C)",
           "min_surplus": "Minimum Solar Surplus to Start (W)",
           "boiler1_power": "Boiler 1 Resistance Rated Power (W)",
-          "boiler2_power": "Boiler 2 Resistance Rated Power (W)"
+          "boiler2_power": "Boiler 2 Resistance Rated Power (W)",
+          "grid_convention_override": "Grid Sensor Convention",
+          "voltage_sensor": "Grid Voltage Sensor (V) — optional, enables priority heating above 250V"
         }
       }
     }

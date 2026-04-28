@@ -90,7 +90,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
             cfg[CONF_TEMP_SENSOR_1],
             cfg[CONF_TEMP_SENSOR_2],
         ]
-        voltage_sensor = cfg.get(CONF_VOLTAGE_SENSOR)
+        voltage_sensor = self.entry.options.get(CONF_VOLTAGE_SENSOR) or self.entry.data.get(CONF_VOLTAGE_SENSOR)
         if voltage_sensor:
             watch.append(voltage_sensor)
 
@@ -154,6 +154,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         temp_sensor_1 = cfg[CONF_TEMP_SENSOR_1]
         temp_sensor_2 = cfg[CONF_TEMP_SENSOR_2]
         grid_sensor = cfg[CONF_GRID_SENSOR]
+
         # options can override the grid convention set during initial setup
         opts = self.entry.options
         grid_convention_override = opts.get("grid_convention_override")
@@ -161,6 +162,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
             grid_positive_is_export: bool = grid_convention_override == "export"
         else:
             grid_positive_is_export: bool = cfg.get(CONF_GRID_POSITIVE_IS_EXPORT, True)
+
+        # voltage sensor: options take priority over data (allows setting from Configure)
+        voltage_sensor = opts.get(CONF_VOLTAGE_SENSOR) or cfg.get(CONF_VOLTAGE_SENSOR)
 
         temp1 = self._float_state(temp_sensor_1)
         temp2 = self._float_state(temp_sensor_2)
@@ -216,7 +220,6 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # --- Priority mode detection ---
         # Condition 1: boiler temp below 50% of target  → force heating regardless of surplus
         # Condition 2: grid voltage > DEFAULT_PRIORITY_VOLTAGE → force heating (overvoltage protection)
-        voltage_sensor = cfg.get(CONF_VOLTAGE_SENSOR)
         grid_voltage = self._float_state(voltage_sensor) if voltage_sensor else None
         high_voltage = grid_voltage is not None and grid_voltage > DEFAULT_PRIORITY_VOLTAGE
 

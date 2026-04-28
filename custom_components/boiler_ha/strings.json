@@ -70,7 +70,8 @@
           "min_surplus": "Surplus minim solar pentru pornire (W)",
           "boiler1_power": "Putere nominală rezistență Boiler 1 (W)",
           "boiler2_power": "Putere nominală rezistență Boiler 2 (W)",
-          "grid_convention_override": "Convenție senzor rețea (export=valoare pozitivă înseamnă surplus la rețea / import=valoare pozitivă înseamnă consum din rețea)"
+          "grid_convention_override": "Convenție senzor rețea (export=valoare pozitivă înseamnă surplus la rețea / import=valoare pozitivă înseamnă consum din rețea)",
+          "voltage_sensor": "Senzor tensiune rețea (V) — opțional, prioritate la tensiune >250V"
         }
       }
     }

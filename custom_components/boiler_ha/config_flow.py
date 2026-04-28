@@ -293,6 +293,10 @@ class BoilerOptionsFlow(config_entries.OptionsFlow):
                     options=_GRID_CONVENTION_OPTIONS,
                     mode=SelectSelectorMode.LIST,
                 )),
+                vol.Optional(
+                    CONF_VOLTAGE_SENSOR,
+                    description={"suggested_value": opts.get(CONF_VOLTAGE_SENSOR) or self._entry.data.get(CONF_VOLTAGE_SENSOR)},
+                ): EntitySelector(EntitySelectorConfig(domain="sensor")),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
