@@ -24,10 +24,31 @@ from .coordinator import BoilerCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+# Old defaults that should be migrated to current defaults on next load
+_LEGACY_DEFAULTS = {
+    CONF_MIN_SURPLUS: (500.0, DEFAULT_MIN_SURPLUS),    # 500 → 800 W
+    CONF_BOILER1_POWER: (2000.0, DEFAULT_BOILER_POWER), # 2000 → 1500 W
+    CONF_BOILER2_POWER: (2000.0, DEFAULT_BOILER_POWER), # 2000 → 1500 W
+}
+
+
+async def _migrate_legacy_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """If saved options still hold old default values, upgrade them silently."""
+    updates = {}
+    for key, (old_val, new_val) in _LEGACY_DEFAULTS.items():
+        if entry.options.get(key) == old_val:
+            updates[key] = new_val
+    if updates:
+        new_options = {**entry.options, **updates}
+        hass.config_entries.async_update_entry(entry, options=new_options)
+        _LOGGER.info("Boiler HA: valori implicite migrate %s", updates)
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Boiler Solar Controller from a config entry."""
     hass.data.setdefault(DOMAIN, {})
+
+    await _migrate_legacy_options(hass, entry)
 
     # Initialize runtime store (for values controlled by switch/number entities)
     hass.data[DOMAIN][entry.entry_id] = {
