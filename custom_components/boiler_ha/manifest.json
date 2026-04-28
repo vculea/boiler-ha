@@ -1,7 +1,7 @@
 {
   "domain": "boiler_ha",
   "name": "Boiler Solar Controller",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "config_flow": true,
   "documentation": "https://github.com/local/boiler-ha",
   "requirements": [],

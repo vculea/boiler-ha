@@ -212,6 +212,15 @@ class BoilerCoordinator(DataUpdateCoordinator):
             "ON" if boiler2_on else "OFF",
         )
 
+        # --- Voltage + effective target calculation (needed by protection block below) ---
+        grid_voltage = self._float_state(voltage_sensor) if voltage_sensor else None
+        high_voltage = grid_voltage is not None and grid_voltage > DEFAULT_PRIORITY_VOLTAGE
+
+        # During overvoltage raise the effective target by VOLTAGE_OVERHEAT_BOOST so boilers
+        # keep running to absorb excess energy, capped at DEFAULT_MAX_TEMP (90 °C).
+        effective_max_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP) if high_voltage else max_temp_1
+        effective_max_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP) if high_voltage else max_temp_2
+
         # --- Temperature protection (always enforced, ignores auto flag) ---
         if temp1 is not None and temp1 >= effective_max_1 and boiler1_on:
             _LOGGER.info("Boiler 1 a atins %.1f°C — oprire releu", effective_max_1)
@@ -226,14 +235,6 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # --- Priority mode detection ---
         # Condition 1: boiler temp below 50% of target  → force heating regardless of surplus
         # Condition 2: grid voltage > DEFAULT_PRIORITY_VOLTAGE → force heating (overvoltage protection)
-        grid_voltage = self._float_state(voltage_sensor) if voltage_sensor else None
-        high_voltage = grid_voltage is not None and grid_voltage > DEFAULT_PRIORITY_VOLTAGE
-
-        # During overvoltage raise the effective target by VOLTAGE_OVERHEAT_BOOST so boilers
-        # keep running to absorb excess energy, capped at DEFAULT_MAX_TEMP (90 °C).
-        effective_max_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP) if high_voltage else max_temp_1
-        effective_max_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP) if high_voltage else max_temp_2
-
         b1_priority = (temp1 is not None and temp1 < effective_max_1 * 0.5) or high_voltage
         b2_priority = (temp2 is not None and temp2 < effective_max_2 * 0.5) or high_voltage
 
