@@ -130,7 +130,7 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     )
                 ),
                 vol.Optional(CONF_VOLTAGE_SENSOR): EntitySelector(
-                    EntitySelectorConfig(domain="sensor", device_class="voltage")
+                    EntitySelectorConfig(domain="sensor")
                 ),
             }
         )
@@ -225,7 +225,7 @@ class BoilerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     SelectSelectorConfig(options=_GRID_CONVENTION_OPTIONS, mode=SelectSelectorMode.LIST)
                 ),
                 vol.Optional(CONF_VOLTAGE_SENSOR, default=current.get(CONF_VOLTAGE_SENSOR)): EntitySelector(
-                    EntitySelectorConfig(domain="sensor", device_class="voltage")
+                    EntitySelectorConfig(domain="sensor")
                 ),
             }
         )
