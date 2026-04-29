@@ -138,6 +138,9 @@ class BoilerMaxTempNumber(_BoilerNumber):
             try:
                 value = float(last.state)
                 self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = value
+                self.coordinator._log_action(
+                    f"Target {self._boiler_name} restaurat la {value:.1f}°C (restart)"
+                )
             except (ValueError, TypeError):
                 pass
 
