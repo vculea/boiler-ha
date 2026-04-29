@@ -83,7 +83,7 @@ class _BoilerNumber(CoordinatorEntity, NumberEntity, RestoreEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler v1.0.15",
+            model="Solar Boiler v1.0.16",
         )
 
     @property
@@ -97,18 +97,6 @@ class _BoilerNumber(CoordinatorEntity, NumberEntity, RestoreEntity):
         self.async_write_ha_state()
         await self.coordinator.async_refresh()
 
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        last = await self.async_get_last_state()
-        if last is not None and last.state not in ("unknown", "unavailable", None):
-            try:
-                value = float(last.state)
-                self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = value
-            except (ValueError, TypeError):
-                pass
-
-
-# ── Concrete entities ─────────────────────────────────────────────────────────
 
 class BoilerMaxTempNumber(_BoilerNumber):
     """Maximum temperature setting for one boiler."""
@@ -131,6 +119,30 @@ class BoilerMaxTempNumber(_BoilerNumber):
     ) -> None:
         super().__init__(coordinator, entry, runtime_key, f"max_temp_{boiler_index}", default)
         self._attr_name = f"Temperatură maximă {boiler_name}"
+        self._boiler_name = boiler_name
+
+    async def async_set_native_value(self, value: float) -> None:
+        old = self.hass.data[DOMAIN][self._entry.entry_id].get(self._runtime_key)
+        self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = value
+        self.async_write_ha_state()
+        if old is not None and old != value:
+            self.coordinator._log_action(
+                f"Target {self._boiler_name} schimbat: {old:.1f}°C → {value:.1f}°C"
+            )
+        await self.coordinator.async_refresh()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None and last.state not in ("unknown", "unavailable", None):
+            try:
+                value = float(last.state)
+                self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = value
+            except (ValueError, TypeError):
+                pass
+
+
+# ── Concrete entities ─────────────────────────────────────────────────────────
 
 
 class BoilerSurplusThresholdNumber(_BoilerNumber):

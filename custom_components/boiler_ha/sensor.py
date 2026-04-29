@@ -310,5 +310,5 @@ class ActionLogSensor(_BoilerSensor):
         entries = list(reversed(log))  # newest first
         return {
             f"actiune_{i + 1}": entries[i] if i < len(entries) else "—"
-            for i in range(3)
+            for i in range(6)
         }

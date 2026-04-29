@@ -85,7 +85,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         )
         self.entry = entry
         self._unsub_listeners: list = []
-        self._action_log: deque[str] = deque(maxlen=3)
+        self._action_log: deque[str] = deque(maxlen=6)
 
     # ------------------------------------------------------------------
     # Setup / teardown
