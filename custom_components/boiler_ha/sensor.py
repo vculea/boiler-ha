@@ -295,11 +295,12 @@ class ActionLogSensor(_BoilerSensor):
 
     @property
     def native_value(self) -> str:
-        """Most recent action, or a placeholder when nothing has happened yet."""
+        """All logged actions joined newest-first, or a placeholder when empty."""
         if self.coordinator.data is None:
             return "—"
         log: list[str] = self.coordinator.data.get("action_log", [])
-        return log[-1] if log else "—"
+        entries = list(reversed(log))  # newest first
+        return "\n".join(entries) if entries else "—"
 
     @property
     def extra_state_attributes(self) -> dict:
