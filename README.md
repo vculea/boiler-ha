@@ -164,7 +164,9 @@ Toate valorile de mai jos pot fi modificate live din dashboard (entitățile `nu
 | Prag minim surplus solar      | 800 W    | Sub acest surplus, niciun boiler nu pornește                                               |
 | Putere nominală Boiler 1/2    | 1500 W   | Puterea rezistenței, folosită în calculul surplusului virtual și ca fallback pentru consum |
 
-> **Histerezis**: după atingerea temperaturii maxime, boilerul nu repornește decât când temperatura scade cu 5 °C sub țintă. Histerezisul e ignorat automat dacă targetul e modificat de user sau dacă e activă prioritatea de tensiune mare.
+> **Histerezis temperatură**: după atingerea temperaturii maxime, boilerul nu repornește decât când temperatura scade cu 5 °C sub țintă. Histerezisul e ignorat automat dacă targetul e modificat de user sau dacă e activă prioritatea de tensiune mare.
+
+> **Histerezis tensiune**: modul prioritate se activează când tensiunea depășește 250 V și se dezactivează abia când scade sub 245 V. Banda de 5 V previne ciclarea rapidă on/off când boilerele pornite absorb curent și scad ușor tensiunea rețelei.
 
 ---
 
@@ -190,19 +192,24 @@ python -m pytest tests/ -v
 ```
 tests/
   conftest.py              — stub-uri pentru modulele homeassistant
-  test_voltage_boost.py    — logica de boost target la supratensiune
+  test_voltage_boost.py    — logica de boost target la supratensiune + histerezis tensiune
 ```
 
 ### Ce acoperă testele actuale
 
-| Test                                   | Comportament verificat                                        |
-| -------------------------------------- | ------------------------------------------------------------- |
-| `test_boost_activates_...`             | Target crește cu +5 °C la supratensiune + temp atinsă         |
-| `test_boost_caps_...`                  | Nu depășește 90 °C (ex. 88+5 → 90, nu 93)                     |
-| `test_no_boost_when_temp_below_target` | Fără boost dacă temperatura nu a atins targetul               |
-| `test_no_boost_when_voltage_normal`    | Fără boost la tensiune normală (<250 V)                       |
-| `test_no_double_boost`                 | Al doilea ciclu sub supratensiune nu mai boostează            |
-| `test_restore_on_voltage_drop`         | Targetul original e restaurat când tensiunea revine la normal |
+| Test                                                               | Comportament verificat                                         |
+| ------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `test_boost_activates_...`                                         | Target crește cu +5 °C la supratensiune + temp atinsă          |
+| `test_boost_caps_...`                                              | Nu depășește 90 °C (ex. 88+5 → 90, nu 93)                      |
+| `test_no_boost_when_temp_below_target`                             | Fără boost dacă temperatura nu a atins targetul                |
+| `test_no_boost_when_voltage_normal`                                | Fără boost la tensiune normală (<250 V)                        |
+| `test_no_double_boost`                                             | Al doilea ciclu sub supratensiune nu mai boostează             |
+| `test_restore_on_voltage_drop`                                     | Targetul original e restaurat când tensiunea revine la normal  |
+| `test_high_voltage_activates_above_threshold`                      | Flag `high_voltage` se setează când tensiunea depășește 250 V  |
+| `test_high_voltage_not_set_below_threshold`                        | Flag-ul nu se activează sub 250 V                              |
+| `test_high_voltage_stays_true_in_hysteresis_band`                  | Odată activ, rămâne True în banda 245–250 V (previne ciclarea) |
+| `test_high_voltage_clears_below_release_threshold`                 | Se dezactivează abia când tensiunea scade sub 245 V            |
+| `test_high_voltage_stays_false_in_hysteresis_band_when_not_active` | Tensiunea în bandă de la zero nu activează flag-ul             |
 
 ---
 
