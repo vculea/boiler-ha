@@ -47,8 +47,11 @@ from .const import (
     RUNTIME_LAST_MAX_TEMP_2,
     RUNTIME_USER_MAX_TEMP_1,
     RUNTIME_USER_MAX_TEMP_2,
+    RUNTIME_VOLTAGE_BOOST_SINCE_1,
+    RUNTIME_VOLTAGE_BOOST_SINCE_2,
     RUNTIME_HIGH_VOLTAGE,
     DEFAULT_MAX_TEMP,
+    VOLTAGE_BOOST_MIN_DURATION,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
     DEFAULT_PRIORITY_VOLTAGE,
@@ -143,8 +146,10 @@ class BoilerCoordinator(DataUpdateCoordinator):
     def _log_action(self, message: str) -> None:
         """Log an action at INFO level and keep it in the rolling 3-entry log."""
         _LOGGER.info(message)
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self._action_log.append(f"[{timestamp}] {message}")
+        log = getattr(self, "_action_log", None)
+        if log is not None:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            log.append(f"[{timestamp}] {message}")
 
     def _float_state(self, entity_id: str) -> float | None:
         state = self.hass.states.get(entity_id)
@@ -247,23 +252,36 @@ class BoilerCoordinator(DataUpdateCoordinator):
         if high_voltage:
             if temp1 is not None and temp1 >= max_temp_1 and RUNTIME_USER_MAX_TEMP_1 not in rt:
                 rt[RUNTIME_USER_MAX_TEMP_1] = max_temp_1
+                rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = datetime.now()
                 max_temp_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                 rt[CONF_MAX_TEMP_1] = max_temp_1
                 self._log_action(f"Supratensiune: target Boiler 1 ridicat la {max_temp_1:.1f}°C")
             if temp2 is not None and temp2 >= max_temp_2 and RUNTIME_USER_MAX_TEMP_2 not in rt:
                 rt[RUNTIME_USER_MAX_TEMP_2] = max_temp_2
+                rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = datetime.now()
                 max_temp_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                 rt[CONF_MAX_TEMP_2] = max_temp_2
                 self._log_action(f"Supratensiune: target Boiler 2 ridicat la {max_temp_2:.1f}°C")
         else:
+            # Restore original target only after the boost has been active long enough.
+            # This prevents rapid oscillation: boilers start → voltage drops → target restored
+            # immediately → boilers stop → voltage rises → repeat.
             if RUNTIME_USER_MAX_TEMP_1 in rt:
-                max_temp_1 = rt.pop(RUNTIME_USER_MAX_TEMP_1)
-                rt[CONF_MAX_TEMP_1] = max_temp_1
-                self._log_action(f"Supratensiune terminată: target Boiler 1 restaurat la {max_temp_1:.1f}°C")
+                since = rt.get(RUNTIME_VOLTAGE_BOOST_SINCE_1)
+                elapsed = (datetime.now() - since).total_seconds() if since else VOLTAGE_BOOST_MIN_DURATION
+                if elapsed >= VOLTAGE_BOOST_MIN_DURATION:
+                    max_temp_1 = rt.pop(RUNTIME_USER_MAX_TEMP_1)
+                    rt.pop(RUNTIME_VOLTAGE_BOOST_SINCE_1, None)
+                    rt[CONF_MAX_TEMP_1] = max_temp_1
+                    self._log_action(f"Supratensiune terminată: target Boiler 1 restaurat la {max_temp_1:.1f}°C")
             if RUNTIME_USER_MAX_TEMP_2 in rt:
-                max_temp_2 = rt.pop(RUNTIME_USER_MAX_TEMP_2)
-                rt[CONF_MAX_TEMP_2] = max_temp_2
-                self._log_action(f"Supratensiune terminată: target Boiler 2 restaurat la {max_temp_2:.1f}°C")
+                since = rt.get(RUNTIME_VOLTAGE_BOOST_SINCE_2)
+                elapsed = (datetime.now() - since).total_seconds() if since else VOLTAGE_BOOST_MIN_DURATION
+                if elapsed >= VOLTAGE_BOOST_MIN_DURATION:
+                    max_temp_2 = rt.pop(RUNTIME_USER_MAX_TEMP_2)
+                    rt.pop(RUNTIME_VOLTAGE_BOOST_SINCE_2, None)
+                    rt[CONF_MAX_TEMP_2] = max_temp_2
+                    self._log_action(f"Supratensiune terminată: target Boiler 2 restaurat la {max_temp_2:.1f}°C")
 
         # --- Temperature protection (always enforced, ignores auto flag) ---
         if temp1 is not None and temp1 >= max_temp_1 and boiler1_on:

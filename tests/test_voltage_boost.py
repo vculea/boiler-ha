@@ -31,6 +31,8 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     RUNTIME_AUTO_2,
     RUNTIME_USER_MAX_TEMP_1,
     RUNTIME_USER_MAX_TEMP_2,
+    RUNTIME_VOLTAGE_BOOST_SINCE_1,
+    RUNTIME_VOLTAGE_BOOST_SINCE_2,
     RUNTIME_HIGH_VOLTAGE,
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_SURPLUS,
@@ -38,6 +40,7 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     DEFAULT_PRIORITY_VOLTAGE,
     VOLTAGE_PRIORITY_RELEASE,
     VOLTAGE_OVERHEAT_BOOST,
+    VOLTAGE_BOOST_MIN_DURATION,
 )
 
 
@@ -191,12 +194,19 @@ async def test_no_double_boost():
 
 @pytest.mark.asyncio
 async def test_restore_on_voltage_drop():
-    """Original target is restored when overvoltage clears."""
+    """Original target is restored when overvoltage clears AND minimum hold time has elapsed."""
+    from datetime import datetime, timedelta
+
     coord, rt = _make_coordinator(temp1=60.0, temp2=60.0, max_temp=60.0, voltage=255.0)
 
     # First cycle: overvoltage → boost
     await coord._apply_control_logic()
     assert rt[CONF_MAX_TEMP_1] == 60.0 + VOLTAGE_OVERHEAT_BOOST
+
+    # Simulate that the boost was activated long enough ago (past the minimum duration)
+    past_time = datetime.now() - timedelta(seconds=VOLTAGE_BOOST_MIN_DURATION + 1)
+    rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = past_time
+    rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = past_time
 
     # Second cycle: voltage returns to normal (clearly below VOLTAGE_PRIORITY_RELEASE)
     coord._float_state = lambda eid: {  # type: ignore[method-assign]
