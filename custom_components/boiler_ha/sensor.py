@@ -295,12 +295,13 @@ class ActionLogSensor(_BoilerSensor):
 
     @property
     def native_value(self) -> str:
-        """All logged actions joined newest-first (HA states cannot contain newlines)."""
+        """Most recent action. HA state is capped at 255 chars; full log is in attributes."""
         if self.coordinator.data is None:
             return "—"
         log: list[str] = self.coordinator.data.get("action_log", [])
-        entries = list(reversed(log))  # newest first
-        return " | ".join(entries) if entries else "—"
+        if not log:
+            return "—"
+        return log[-1][:255]
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -309,6 +310,9 @@ class ActionLogSensor(_BoilerSensor):
         log: list[str] = self.coordinator.data.get("action_log", [])
         entries = list(reversed(log))  # newest first
         return {
-            f"actiune_{i + 1}": entries[i] if i < len(entries) else "—"
-            for i in range(6)
+            "jurnal_complet": "\n".join(entries) if entries else "—",
+            **{
+                f"actiune_{i + 1}": entries[i] if i < len(entries) else "—"
+                for i in range(6)
+            },
         }
