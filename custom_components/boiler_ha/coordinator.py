@@ -16,7 +16,8 @@ consumers draw power (grid_export drops → virtual_surplus drops → boilers st
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from collections import deque
+from datetime import datetime, timedelta
 
 from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, callback
@@ -81,6 +82,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         )
         self.entry = entry
         self._unsub_listeners: list = []
+        self._action_log: deque[str] = deque(maxlen=3)
 
     # ------------------------------------------------------------------
     # Setup / teardown
@@ -137,6 +139,12 @@ class BoilerCoordinator(DataUpdateCoordinator):
     def _runtime(self) -> dict:
         """Return the mutable runtime store for this entry."""
         return self.hass.data[DOMAIN][self.entry.entry_id]
+
+    def _log_action(self, message: str) -> None:
+        """Log an action at INFO level and keep it in the rolling 3-entry log."""
+        _LOGGER.info(message)
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self._action_log.append(f"[{timestamp}] {message}")
 
     def _float_state(self, entity_id: str) -> float | None:
         state = self.hass.states.get(entity_id)
@@ -241,30 +249,30 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 rt[RUNTIME_USER_MAX_TEMP_1] = max_temp_1
                 max_temp_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                 rt[CONF_MAX_TEMP_1] = max_temp_1
-                _LOGGER.info("Supratensiune: target Boiler 1 ridicat la %.1f°C", max_temp_1)
+                self._log_action(f"Supratensiune: target Boiler 1 ridicat la {max_temp_1:.1f}°C")
             if temp2 is not None and temp2 >= max_temp_2 and RUNTIME_USER_MAX_TEMP_2 not in rt:
                 rt[RUNTIME_USER_MAX_TEMP_2] = max_temp_2
                 max_temp_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                 rt[CONF_MAX_TEMP_2] = max_temp_2
-                _LOGGER.info("Supratensiune: target Boiler 2 ridicat la %.1f°C", max_temp_2)
+                self._log_action(f"Supratensiune: target Boiler 2 ridicat la {max_temp_2:.1f}°C")
         else:
             if RUNTIME_USER_MAX_TEMP_1 in rt:
                 max_temp_1 = rt.pop(RUNTIME_USER_MAX_TEMP_1)
                 rt[CONF_MAX_TEMP_1] = max_temp_1
-                _LOGGER.info("Supratensiune terminată: target Boiler 1 restaurat la %.1f°C", max_temp_1)
+                self._log_action(f"Supratensiune terminată: target Boiler 1 restaurat la {max_temp_1:.1f}°C")
             if RUNTIME_USER_MAX_TEMP_2 in rt:
                 max_temp_2 = rt.pop(RUNTIME_USER_MAX_TEMP_2)
                 rt[CONF_MAX_TEMP_2] = max_temp_2
-                _LOGGER.info("Supratensiune terminată: target Boiler 2 restaurat la %.1f°C", max_temp_2)
+                self._log_action(f"Supratensiune terminată: target Boiler 2 restaurat la {max_temp_2:.1f}°C")
 
         # --- Temperature protection (always enforced, ignores auto flag) ---
         if temp1 is not None and temp1 >= max_temp_1 and boiler1_on:
-            _LOGGER.info("Boiler 1 a atins %.1f°C — oprire releu", max_temp_1)
+            self._log_action(f"Boiler 1 a atins {max_temp_1:.1f}°C — oprire releu")
             await self._set_switch(relay_1, False)
             boiler1_on = False
 
         if temp2 is not None and temp2 >= max_temp_2 and boiler2_on:
-            _LOGGER.info("Boiler 2 a atins %.1f°C — oprire releu", max_temp_2)
+            self._log_action(f"Boiler 2 a atins {max_temp_2:.1f}°C — oprire releu")
             await self._set_switch(relay_2, False)
             boiler2_on = False
 
@@ -304,16 +312,14 @@ class BoilerCoordinator(DataUpdateCoordinator):
             else:
                 should_run_1 = (virtual_surplus >= min_surplus) and temp_ok_1
             if should_run_1 and not boiler1_on:
-                _LOGGER.info(
-                    "Pornire Boiler 1 — surplus=%.0fW temp=%.1f°C priority=%s",
-                    virtual_surplus, temp1, b1_priority,
+                self._log_action(
+                    f"Pornire Boiler 1 — surplus={virtual_surplus:.0f}W temp={temp1:.1f}°C priority={b1_priority}"
                 )
                 await self._set_switch(relay_1, True)
                 boiler1_on = True
             elif not should_run_1 and boiler1_on:
-                _LOGGER.info(
-                    "Oprire Boiler 1 — surplus=%.0fW temp=%.1f°C priority=%s",
-                    virtual_surplus, temp1, b1_priority,
+                self._log_action(
+                    f"Oprire Boiler 1 — surplus={virtual_surplus:.0f}W temp={temp1:.1f}°C priority={b1_priority}"
                 )
                 await self._set_switch(relay_1, False)
                 boiler1_on = False
@@ -331,13 +337,13 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 surplus_after_b1 = virtual_surplus - (boiler1_power if boiler1_on else 0)
                 should_run_2 = (surplus_after_b1 >= min_surplus) and temp_ok_2
             if should_run_2 and not boiler2_on:
-                _LOGGER.info(
-                    "Pornire Boiler 2 — temp=%.1f°C priority=%s", temp2, b2_priority,
+                self._log_action(
+                    f"Pornire Boiler 2 — temp={temp2:.1f}°C priority={b2_priority}"
                 )
                 await self._set_switch(relay_2, True)
             elif not should_run_2 and boiler2_on:
-                _LOGGER.info(
-                    "Oprire Boiler 2 — temp=%.1f°C priority=%s", temp2, b2_priority,
+                self._log_action(
+                    f"Oprire Boiler 2 — temp={temp2:.1f}°C priority={b2_priority}"
                 )
                 await self._set_switch(relay_2, False)
 
@@ -424,4 +430,5 @@ class BoilerCoordinator(DataUpdateCoordinator):
             "grid_voltage": grid_voltage,
             "boiler1_status": _status(boiler1_on, temp1, max_temp_1, auto_1, b1_priority),
             "boiler2_status": _status(boiler2_on, temp2, max_temp_2, auto_2, b2_priority),
+            "action_log": list(self._action_log),
         }

@@ -52,6 +52,7 @@ async def async_setup_entry(
         BoilerPowerConsumptionSensor(coordinator, entry, b2, "boiler2_power_consumption", "2"),
         BoilerStatusSensor(coordinator, entry, b1, "boiler1_status", "1"),
         BoilerStatusSensor(coordinator, entry, b2, "boiler2_status", "2"),
+        ActionLogSensor(coordinator, entry),
     ]
     async_add_entities(entities)
 
@@ -278,3 +279,35 @@ class GridVoltageSensor(_BoilerSensor):
         if self.coordinator.data is None:
             return None
         return self.coordinator.data.get("grid_voltage")
+
+
+# ── Action log sensor ──────────────────────────────────────────────────────
+
+class ActionLogSensor(_BoilerSensor):
+    """Shows the last 3 actions taken by the control logic."""
+
+    _attr_name = "Jurnal acțiuni"
+    _attr_icon = "mdi:clipboard-text-clock"
+
+    def __init__(self, coordinator: BoilerCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_action_log"
+
+    @property
+    def native_value(self) -> str:
+        """Most recent action, or a placeholder when nothing has happened yet."""
+        if self.coordinator.data is None:
+            return "—"
+        log: list[str] = self.coordinator.data.get("action_log", [])
+        return log[-1] if log else "—"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        if self.coordinator.data is None:
+            return {}
+        log: list[str] = self.coordinator.data.get("action_log", [])
+        entries = list(reversed(log))  # newest first
+        return {
+            f"actiune_{i + 1}": entries[i] if i < len(entries) else "—"
+            for i in range(3)
+        }
