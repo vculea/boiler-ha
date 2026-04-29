@@ -50,6 +50,7 @@ from .const import (
     RUNTIME_VOLTAGE_BOOST_SINCE_1,
     RUNTIME_VOLTAGE_BOOST_SINCE_2,
     RUNTIME_HIGH_VOLTAGE,
+    RUNTIME_HIGH_VOLTAGE_SINCE,
     DEFAULT_MAX_TEMP,
     VOLTAGE_BOOST_MIN_DURATION,
     DEFAULT_MIN_SURPLUS,
@@ -59,6 +60,7 @@ from .const import (
     TEMP_BALANCE_MAX_DIFF,
     TEMP_HYSTERESIS,
     VOLTAGE_OVERHEAT_BOOST,
+    OVERVOLTAGE_TRIGGER_DELAY,
     STATUS_HEATING,
     STATUS_PRIORITY,
     STATUS_STANDBY,
@@ -236,12 +238,29 @@ class BoilerCoordinator(DataUpdateCoordinator):
         prev_high_voltage: bool = rt.get(RUNTIME_HIGH_VOLTAGE, False)
         if grid_voltage is None:
             high_voltage = False
+            rt.pop(RUNTIME_HIGH_VOLTAGE_SINCE, None)
         elif grid_voltage > DEFAULT_PRIORITY_VOLTAGE:
-            high_voltage = True
+            if prev_high_voltage:
+                high_voltage = True  # deja activ, menține
+            else:
+                # Nu e încă activ — pornește/verifică timer-ul de întârziere
+                if RUNTIME_HIGH_VOLTAGE_SINCE not in rt:
+                    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now()
+                elapsed = (datetime.now() - rt[RUNTIME_HIGH_VOLTAGE_SINCE]).total_seconds()
+                if elapsed >= OVERVOLTAGE_TRIGGER_DELAY:
+                    high_voltage = True
+                    rt.pop(RUNTIME_HIGH_VOLTAGE_SINCE, None)
+                    self._log_action(f"Supratensiune activată după {elapsed:.0f}s ({grid_voltage:.1f}V)")
+                else:
+                    high_voltage = False  # așteptăm să expire delay-ul
         elif grid_voltage < VOLTAGE_PRIORITY_RELEASE:
             high_voltage = False
+            rt.pop(RUNTIME_HIGH_VOLTAGE_SINCE, None)
         else:
-            high_voltage = prev_high_voltage  # keep current state while in hysteresis band
+            # Bandă histerezis: menține starea curentă; dacă nu e activ, resetează timer-ul
+            high_voltage = prev_high_voltage
+            if not high_voltage:
+                rt.pop(RUNTIME_HIGH_VOLTAGE_SINCE, None)
         rt[RUNTIME_HIGH_VOLTAGE] = high_voltage
 
         # --- Overvoltage target boost ---

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -34,6 +35,7 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     RUNTIME_VOLTAGE_BOOST_SINCE_1,
     RUNTIME_VOLTAGE_BOOST_SINCE_2,
     RUNTIME_HIGH_VOLTAGE,
+    RUNTIME_HIGH_VOLTAGE_SINCE,
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
@@ -41,6 +43,7 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     VOLTAGE_PRIORITY_RELEASE,
     VOLTAGE_OVERHEAT_BOOST,
     VOLTAGE_BOOST_MIN_DURATION,
+    OVERVOLTAGE_TRIGGER_DELAY,
 )
 
 
@@ -129,6 +132,7 @@ def _make_coordinator(
 async def test_boost_activates_when_overvoltage_and_target_reached():
     """Target is raised by VOLTAGE_OVERHEAT_BOOST when voltage is high AND temp >= max_temp."""
     coord, rt = _make_coordinator(temp1=60.0, temp2=60.0, max_temp=60.0, voltage=255.0)
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
 
     await coord._apply_control_logic()
 
@@ -144,6 +148,7 @@ async def test_boost_caps_at_default_max_temp():
     """Boosted target must never exceed DEFAULT_MAX_TEMP (90 °C)."""
     # 88 + 5 = 93 → must be capped at 90
     coord, rt = _make_coordinator(temp1=88.0, temp2=88.0, max_temp=88.0, voltage=255.0)
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
 
     await coord._apply_control_logic()
 
@@ -195,9 +200,8 @@ async def test_no_double_boost():
 @pytest.mark.asyncio
 async def test_restore_on_voltage_drop():
     """Original target is restored when overvoltage clears AND minimum hold time has elapsed."""
-    from datetime import datetime, timedelta
-
     coord, rt = _make_coordinator(temp1=60.0, temp2=60.0, max_temp=60.0, voltage=255.0)
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
 
     # First cycle: overvoltage → boost
     await coord._apply_control_logic()
@@ -257,8 +261,9 @@ def _make_coordinator_mutable_voltage(
 
 @pytest.mark.asyncio
 async def test_high_voltage_activates_above_threshold():
-    """high_voltage flag must be set when voltage exceeds DEFAULT_PRIORITY_VOLTAGE."""
+    """high_voltage flag must be set when voltage exceeds DEFAULT_PRIORITY_VOLTAGE and delay has elapsed."""
     coord, rt, sensors = _make_coordinator_mutable_voltage(initial_voltage=251.0)
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
 
     await coord._apply_control_logic()
 
@@ -280,8 +285,9 @@ async def test_high_voltage_stays_true_in_hysteresis_band():
     """Once active, high_voltage must remain True while voltage is in the hysteresis band
     (VOLTAGE_PRIORITY_RELEASE <= voltage <= DEFAULT_PRIORITY_VOLTAGE)."""
     coord, rt, sensors = _make_coordinator_mutable_voltage(initial_voltage=251.0)
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
 
-    # First cycle: voltage above threshold → activates
+    # First cycle: voltage above threshold → activates after delay
     await coord._apply_control_logic()
     assert rt[RUNTIME_HIGH_VOLTAGE] is True
 
@@ -298,6 +304,7 @@ async def test_high_voltage_stays_true_in_hysteresis_band():
 async def test_high_voltage_clears_below_release_threshold():
     """high_voltage must clear only when voltage drops below VOLTAGE_PRIORITY_RELEASE."""
     coord, rt, sensors = _make_coordinator_mutable_voltage(initial_voltage=251.0)
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
 
     # Activate
     await coord._apply_control_logic()

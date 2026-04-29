@@ -25,6 +25,7 @@ S17 — Balance: B2 too hot vs B1 in priority mode → B2 held back
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -56,6 +57,8 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
     DEFAULT_PRIORITY_VOLTAGE,
+    RUNTIME_HIGH_VOLTAGE_SINCE,
+    OVERVOLTAGE_TRIGGER_DELAY,
 )
 
 MAX_TEMP = 65.0
@@ -250,11 +253,12 @@ async def test_s7_no_priority_when_temp_above_half_target():
 async def test_s8_overvoltage_forces_start_with_low_surplus():
     """S8 — Overvoltage (>250V) forces boiler ON even when surplus is below threshold."""
     temp_below_target = MAX_TEMP - TEMP_HYSTERESIS - 5.0
-    coord, _ = _make_coord(
+    coord, rt = _make_coord(
         temp1=temp_below_target, temp2=temp_below_target,
         grid_export=LOW_SURPLUS,
         voltage=HIGH_VOLTAGE,
     )
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
 
     await coord._apply_control_logic()
 

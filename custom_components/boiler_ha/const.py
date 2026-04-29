@@ -33,6 +33,7 @@ RUNTIME_USER_MAX_TEMP_2 = "user_max_temp_2"
 RUNTIME_VOLTAGE_BOOST_SINCE_1 = "voltage_boost_since_1"  # datetime when boost was activated
 RUNTIME_VOLTAGE_BOOST_SINCE_2 = "voltage_boost_since_2"
 RUNTIME_HIGH_VOLTAGE = "high_voltage_active"  # persistent hysteresis state for overvoltage detection
+RUNTIME_HIGH_VOLTAGE_SINCE = "high_voltage_since"  # datetime when overvoltage threshold was first exceeded
 
 # Default values
 DEFAULT_MAX_TEMP = 90.0          # °C
@@ -44,6 +45,7 @@ TEMP_BALANCE_MAX_DIFF = 5.0      # °C — max allowed temperature difference be
 TEMP_HYSTERESIS = 5.0            # °C — boiler won't restart until temp drops this far below target
 VOLTAGE_OVERHEAT_BOOST = 5.0   # °C — effective target increase during overvoltage (capped at DEFAULT_MAX_TEMP)
 VOLTAGE_BOOST_MIN_DURATION = 300  # seconds — minimum time boost stays active even after voltage normalises
+OVERVOLTAGE_TRIGGER_DELAY = 5   # seconds — overvoltage must persist this long before protection activates
 
 # Platforms
 PLATFORMS = ["switch", "number", "sensor"]
