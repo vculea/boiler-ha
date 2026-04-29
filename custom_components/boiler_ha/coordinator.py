@@ -46,10 +46,12 @@ from .const import (
     RUNTIME_LAST_MAX_TEMP_2,
     RUNTIME_USER_MAX_TEMP_1,
     RUNTIME_USER_MAX_TEMP_2,
+    RUNTIME_HIGH_VOLTAGE,
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
     DEFAULT_PRIORITY_VOLTAGE,
+    VOLTAGE_PRIORITY_RELEASE,
     TEMP_BALANCE_MAX_DIFF,
     TEMP_HYSTERESIS,
     VOLTAGE_OVERHEAT_BOOST,
@@ -214,9 +216,20 @@ class BoilerCoordinator(DataUpdateCoordinator):
             "ON" if boiler2_on else "OFF",
         )
 
-        # --- Voltage detection ---
+        # --- Voltage detection (with hysteresis) ---
+        # Activate priority at > DEFAULT_PRIORITY_VOLTAGE, release only when < VOLTAGE_PRIORITY_RELEASE.
+        # This prevents rapid on/off oscillation when boilers absorb power and lower the voltage.
         grid_voltage = self._float_state(voltage_sensor) if voltage_sensor else None
-        high_voltage = grid_voltage is not None and grid_voltage > DEFAULT_PRIORITY_VOLTAGE
+        prev_high_voltage: bool = rt.get(RUNTIME_HIGH_VOLTAGE, False)
+        if grid_voltage is None:
+            high_voltage = False
+        elif grid_voltage > DEFAULT_PRIORITY_VOLTAGE:
+            high_voltage = True
+        elif grid_voltage < VOLTAGE_PRIORITY_RELEASE:
+            high_voltage = False
+        else:
+            high_voltage = prev_high_voltage  # keep current state while in hysteresis band
+        rt[RUNTIME_HIGH_VOLTAGE] = high_voltage
 
         # --- Overvoltage target boost ---
         # When overvoltage is active and a boiler has already reached its user-set target,
@@ -381,7 +394,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
 
         voltage_sensor = cfg.get(CONF_VOLTAGE_SENSOR)
         grid_voltage = self._float_state(voltage_sensor) if voltage_sensor else None
-        high_voltage = grid_voltage is not None and grid_voltage > DEFAULT_PRIORITY_VOLTAGE
+        high_voltage = rt.get(RUNTIME_HIGH_VOLTAGE, False)
 
         b1_priority = (temp1 is not None and temp1 < max_temp_1 * 0.5) or high_voltage
         b2_priority = (temp2 is not None and temp2 < max_temp_2 * 0.5) or high_voltage

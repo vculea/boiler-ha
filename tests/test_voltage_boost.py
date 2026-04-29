@@ -31,9 +31,12 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     RUNTIME_AUTO_2,
     RUNTIME_USER_MAX_TEMP_1,
     RUNTIME_USER_MAX_TEMP_2,
+    RUNTIME_HIGH_VOLTAGE,
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
+    DEFAULT_PRIORITY_VOLTAGE,
+    VOLTAGE_PRIORITY_RELEASE,
     VOLTAGE_OVERHEAT_BOOST,
 )
 
@@ -195,13 +198,13 @@ async def test_restore_on_voltage_drop():
     await coord._apply_control_logic()
     assert rt[CONF_MAX_TEMP_1] == 60.0 + VOLTAGE_OVERHEAT_BOOST
 
-    # Second cycle: voltage returns to normal
+    # Second cycle: voltage returns to normal (clearly below VOLTAGE_PRIORITY_RELEASE)
     coord._float_state = lambda eid: {  # type: ignore[method-assign]
         "sensor.temp1": 62.0,
         "sensor.temp2": 62.0,
         "sensor.solar": 3000.0,
         "sensor.grid": 2000.0,
-        "sensor.voltage": 245.0,
+        "sensor.voltage": VOLTAGE_PRIORITY_RELEASE - 1.0,
     }.get(eid)
 
     await coord._apply_control_logic()
@@ -210,3 +213,101 @@ async def test_restore_on_voltage_drop():
     assert rt[CONF_MAX_TEMP_2] == 60.0
     assert RUNTIME_USER_MAX_TEMP_1 not in rt, "Saved original must be cleaned up"
     assert RUNTIME_USER_MAX_TEMP_2 not in rt
+
+
+# ---------------------------------------------------------------------------
+# Voltage hysteresis tests
+# ---------------------------------------------------------------------------
+
+def _make_coordinator_mutable_voltage(
+    *,
+    temp1: float = 50.0,
+    temp2: float = 50.0,
+    max_temp: float = 65.0,
+    initial_voltage: float = 245.0,
+) -> tuple[BoilerCoordinator, dict[str, Any], dict]:
+    """Like _make_coordinator but voltage is stored in a mutable dict so tests can change it."""
+    coord, rt = _make_coordinator(
+        temp1=temp1, temp2=temp2, max_temp=max_temp, voltage=initial_voltage
+    )
+    sensor_state: dict = {"voltage": initial_voltage, "temp1": temp1, "temp2": temp2}
+
+    def _float_state(eid: str) -> float | None:
+        return {
+            "sensor.temp1": sensor_state["temp1"],
+            "sensor.temp2": sensor_state["temp2"],
+            "sensor.solar": 3000.0,
+            "sensor.grid": 2000.0,
+            "sensor.voltage": sensor_state["voltage"],
+        }.get(eid)
+
+    coord._float_state = _float_state  # type: ignore[method-assign]
+    return coord, rt, sensor_state
+
+
+@pytest.mark.asyncio
+async def test_high_voltage_activates_above_threshold():
+    """high_voltage flag must be set when voltage exceeds DEFAULT_PRIORITY_VOLTAGE."""
+    coord, rt, sensors = _make_coordinator_mutable_voltage(initial_voltage=251.0)
+
+    await coord._apply_control_logic()
+
+    assert rt[RUNTIME_HIGH_VOLTAGE] is True
+
+
+@pytest.mark.asyncio
+async def test_high_voltage_not_set_below_threshold():
+    """high_voltage flag must be False when voltage is below DEFAULT_PRIORITY_VOLTAGE."""
+    coord, rt, sensors = _make_coordinator_mutable_voltage(initial_voltage=245.0)
+
+    await coord._apply_control_logic()
+
+    assert rt.get(RUNTIME_HIGH_VOLTAGE, False) is False
+
+
+@pytest.mark.asyncio
+async def test_high_voltage_stays_true_in_hysteresis_band():
+    """Once active, high_voltage must remain True while voltage is in the hysteresis band
+    (VOLTAGE_PRIORITY_RELEASE <= voltage <= DEFAULT_PRIORITY_VOLTAGE)."""
+    coord, rt, sensors = _make_coordinator_mutable_voltage(initial_voltage=251.0)
+
+    # First cycle: voltage above threshold → activates
+    await coord._apply_control_logic()
+    assert rt[RUNTIME_HIGH_VOLTAGE] is True
+
+    # Second cycle: voltage drops into the band (248 V — between 246 and 250)
+    sensors["voltage"] = (DEFAULT_PRIORITY_VOLTAGE + VOLTAGE_PRIORITY_RELEASE) / 2  # 248 V
+    await coord._apply_control_logic()
+
+    assert rt[RUNTIME_HIGH_VOLTAGE] is True, (
+        "high_voltage must stay True in hysteresis band to prevent rapid cycling"
+    )
+
+
+@pytest.mark.asyncio
+async def test_high_voltage_clears_below_release_threshold():
+    """high_voltage must clear only when voltage drops below VOLTAGE_PRIORITY_RELEASE."""
+    coord, rt, sensors = _make_coordinator_mutable_voltage(initial_voltage=251.0)
+
+    # Activate
+    await coord._apply_control_logic()
+    assert rt[RUNTIME_HIGH_VOLTAGE] is True
+
+    # Drop below release threshold
+    sensors["voltage"] = VOLTAGE_PRIORITY_RELEASE - 1.0  # 245 V
+    await coord._apply_control_logic()
+
+    assert rt[RUNTIME_HIGH_VOLTAGE] is False
+
+
+@pytest.mark.asyncio
+async def test_high_voltage_stays_false_in_hysteresis_band_when_not_active():
+    """If high_voltage was never activated, voltage in the band must NOT activate it."""
+    coord, rt, sensors = _make_coordinator_mutable_voltage(initial_voltage=248.0)
+
+    await coord._apply_control_logic()
+
+    assert rt.get(RUNTIME_HIGH_VOLTAGE, False) is False, (
+        "Voltage in hysteresis band from below must not activate high_voltage"
+    )
+

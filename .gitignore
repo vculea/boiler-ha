@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# uv
+.uv/
+
+# VS Code
+.vscode/
+
+# Distribution / build
+dist/
+build/
+*.egg-info/
+custom_components/boiler_ha/__pycache__/const.cpython-314.pyc
+custom_components/boiler_ha/__pycache__/coordinator.cpython-314.pyc
