@@ -52,6 +52,7 @@ async def async_setup_entry(
         BoilerPowerConsumptionSensor(coordinator, entry, b2, "boiler2_power_consumption", "2"),
         BoilerStatusSensor(coordinator, entry, b1, "boiler1_status", "1"),
         BoilerStatusSensor(coordinator, entry, b2, "boiler2_status", "2"),
+        ScheduleStatusSensor(coordinator, entry),
         ActionLogSensor(coordinator, entry),
     ]
     async_add_entities(entities)
@@ -76,7 +77,7 @@ class _BoilerSensor(CoordinatorEntity, SensorEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler",
+            model="Solar Boiler v1.1.0",
         )
 
 
@@ -315,4 +316,39 @@ class ActionLogSensor(_BoilerSensor):
                 f"actiune_{i + 1}": entries[i] if i < len(entries) else "—"
                 for i in range(6)
             },
+        }
+
+
+# ── Solar schedule status sensor ──────────────────────────────────────────
+
+class ScheduleStatusSensor(_BoilerSensor):
+    """Shows the current status of the shared solar-only heating schedule."""
+
+    _attr_icon = "mdi:solar-panel-large"
+    _attr_name = "Program solar"
+
+    def __init__(
+        self,
+        coordinator: BoilerCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_schedule_status"
+
+    @property
+    def native_value(self) -> str | None:
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.get("schedule_status")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        if self.coordinator.data is None:
+            return {}
+        deadline = self.coordinator.data.get("schedule_deadline")
+        return {
+            "temperatura_tinta": self.coordinator.data.get("schedule_target"),
+            "deadline": deadline.isoformat() if deadline is not None else None,
+            "boiler1_gata": self.coordinator.data.get("schedule_done_1", False),
+            "boiler2_gata": self.coordinator.data.get("schedule_done_2", False),
         }

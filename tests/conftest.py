@@ -22,6 +22,17 @@ def _stub_ha_modules() -> None:
     ha_coordinator.DataUpdateCoordinator = _DataUpdateCoordinator
     ha_coordinator.UpdateFailed = _UpdateFailed
 
+    from datetime import datetime, timezone
+
+    ha_dt = MagicMock()
+    ha_dt.now = lambda: datetime.now(timezone.utc)
+    ha_dt.utcnow = lambda: datetime.now(timezone.utc)
+    ha_dt.as_utc = lambda d: d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d
+    ha_dt.parse_datetime = lambda s: datetime.fromisoformat(s) if s else None
+
+    ha_util = MagicMock()
+    ha_util.dt = ha_dt
+
     stubs = {
         "homeassistant": MagicMock(),
         "homeassistant.const": ha_const,
@@ -37,6 +48,9 @@ def _stub_ha_modules() -> None:
         "homeassistant.components.sensor": MagicMock(),
         "homeassistant.components.number": MagicMock(),
         "homeassistant.components.switch": MagicMock(),
+        "homeassistant.components.datetime": MagicMock(),
+        "homeassistant.util": ha_util,
+        "homeassistant.util.dt": ha_dt,
     }
 
     for name, stub in stubs.items():

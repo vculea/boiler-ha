@@ -35,10 +35,17 @@ RUNTIME_VOLTAGE_BOOST_SINCE_2 = "voltage_boost_since_2"
 RUNTIME_HIGH_VOLTAGE = "high_voltage_active"  # persistent hysteresis state for overvoltage detection
 RUNTIME_HIGH_VOLTAGE_SINCE = "high_voltage_since"  # datetime when overvoltage threshold was first exceeded
 
+# Solar-only schedule runtime keys (single shared schedule for both boilers)
+RUNTIME_SCHEDULE_TARGET = "schedule_target"      # float — scheduled target temperature (both boilers)
+RUNTIME_SCHEDULE_DEADLINE = "schedule_deadline"  # aware UTC datetime — heating deadline
+RUNTIME_SCHEDULE_DONE_1 = "schedule_done_1"      # bool — True when boiler 1 reached the schedule target
+RUNTIME_SCHEDULE_DONE_2 = "schedule_done_2"      # bool — True when boiler 2 reached the schedule target
+
 # Default values
 DEFAULT_MAX_TEMP = 90.0          # °C
 DEFAULT_MIN_SURPLUS = 800.0      # W — minimum surplus before starting any boiler
 DEFAULT_BOILER_POWER = 1500.0    # W — estimated rated power of one resistance
+DEFAULT_SCHEDULE_TARGET = 60.0   # °C — default solar schedule target temperature
 DEFAULT_PRIORITY_VOLTAGE = 250.0 # V — grid voltage above which priority heating is forced
 VOLTAGE_PRIORITY_RELEASE = 245.0 # V — voltage must drop below this to exit priority mode (hysteresis)
 TEMP_BALANCE_MAX_DIFF = 5.0      # °C — max allowed temperature difference between boilers in priority mode
@@ -48,7 +55,7 @@ VOLTAGE_BOOST_MIN_DURATION = 300  # seconds — minimum time boost stays active 
 OVERVOLTAGE_TRIGGER_DELAY = 5   # seconds — overvoltage must persist this long before protection activates
 
 # Platforms
-PLATFORMS = ["switch", "number", "sensor"]
+PLATFORMS = ["switch", "number", "sensor", "datetime"]
 
 # Status strings (used by sensor entities)
 STATUS_HEATING = "Încălzire"
@@ -58,3 +65,9 @@ STATUS_TARGET_REACHED = "Temperatură atinsă"
 STATUS_NO_SOLAR = "Fără producție solară"
 STATUS_MANUAL = "Control manual"
 STATUS_UNAVAILABLE = "Senzor indisponibil"
+
+# Solar schedule status strings
+STATUS_SCHEDULE_SOLAR = "Program solar activ"
+STATUS_SCHEDULE_DONE = "Target solar atins"
+STATUS_SCHEDULE_EXPIRED = "Program solar expirat"
+STATUS_SCHEDULE_INACTIVE = "Inactiv"

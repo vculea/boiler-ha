@@ -23,6 +23,7 @@ from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN,
@@ -61,6 +62,10 @@ from .const import (
     TEMP_HYSTERESIS,
     VOLTAGE_OVERHEAT_BOOST,
     OVERVOLTAGE_TRIGGER_DELAY,
+    RUNTIME_SCHEDULE_TARGET,
+    RUNTIME_SCHEDULE_DEADLINE,
+    RUNTIME_SCHEDULE_DONE_1,
+    RUNTIME_SCHEDULE_DONE_2,
     STATUS_HEATING,
     STATUS_PRIORITY,
     STATUS_STANDBY,
@@ -68,6 +73,10 @@ from .const import (
     STATUS_NO_SOLAR,
     STATUS_MANUAL,
     STATUS_UNAVAILABLE,
+    STATUS_SCHEDULE_SOLAR,
+    STATUS_SCHEDULE_DONE,
+    STATUS_SCHEDULE_EXPIRED,
+    STATUS_SCHEDULE_INACTIVE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -205,6 +214,27 @@ class BoilerCoordinator(DataUpdateCoordinator):
         auto_1: bool = rt.get(RUNTIME_AUTO_1, True)
         auto_2: bool = rt.get(RUNTIME_AUTO_2, True)
 
+        # --- Solar-only schedule ---
+        # A single shared schedule: one deadline + one target temperature for both boilers.
+        # Each boiler's done flag is tracked independently so both must reach the target.
+        # Priority mode (which can consume from grid) is suppressed for scheduled boilers.
+        now_aware = dt_util.now()
+        sched_target: float | None = rt.get(RUNTIME_SCHEDULE_TARGET)
+        sched_deadline = rt.get(RUNTIME_SCHEDULE_DEADLINE)
+        sched_done_1: bool = rt.get(RUNTIME_SCHEDULE_DONE_1, False)
+        sched_done_2: bool = rt.get(RUNTIME_SCHEDULE_DONE_2, False)
+        sched_base_active: bool = (
+            sched_target is not None
+            and sched_deadline is not None
+            and sched_deadline > now_aware
+        )
+        sched_active_1: bool = sched_base_active and not sched_done_1 and auto_1
+        sched_active_2: bool = sched_base_active and not sched_done_2 and auto_2
+        if sched_active_1:
+            max_temp_1 = sched_target
+        if sched_active_2:
+            max_temp_2 = sched_target
+
         # --- Safety guards ---
         if temp1 is None:
             _LOGGER.warning("Senzor temperatură Boiler 1 indisponibil — nu se controlează releul")
@@ -269,13 +299,13 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # restarts and keeps running to absorb the excess energy.
         # The original target is saved in RUNTIME_USER_MAX_TEMP and restored when voltage normalises.
         if high_voltage:
-            if temp1 is not None and temp1 >= max_temp_1 and RUNTIME_USER_MAX_TEMP_1 not in rt:
+            if temp1 is not None and temp1 >= max_temp_1 and RUNTIME_USER_MAX_TEMP_1 not in rt and not sched_active_1:
                 rt[RUNTIME_USER_MAX_TEMP_1] = max_temp_1
                 rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = datetime.now()
                 max_temp_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                 rt[CONF_MAX_TEMP_1] = max_temp_1
                 self._log_action(f"Supratensiune: target Boiler 1 ridicat la {max_temp_1:.1f}°C")
-            if temp2 is not None and temp2 >= max_temp_2 and RUNTIME_USER_MAX_TEMP_2 not in rt:
+            if temp2 is not None and temp2 >= max_temp_2 and RUNTIME_USER_MAX_TEMP_2 not in rt and not sched_active_2:
                 rt[RUNTIME_USER_MAX_TEMP_2] = max_temp_2
                 rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = datetime.now()
                 max_temp_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
@@ -316,8 +346,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # --- Priority mode detection ---
         # Condition 1: boiler temp below 50% of target  → force heating regardless of surplus
         # Condition 2: grid voltage > DEFAULT_PRIORITY_VOLTAGE → force heating (overvoltage protection)
-        b1_priority = (temp1 is not None and temp1 < max_temp_1 * 0.5) or high_voltage
-        b2_priority = (temp2 is not None and temp2 < max_temp_2 * 0.5) or high_voltage
+        # NOTE: Condition 1 is suppressed during solar-only schedule (no grid consumption allowed).
+        b1_priority = (not sched_active_1 and temp1 is not None and temp1 < max_temp_1 * 0.5) or high_voltage
+        b2_priority = (not sched_active_2 and temp2 is not None and temp2 < max_temp_2 * 0.5) or high_voltage
 
         # Balance: in priority mode, if one boiler is >TEMP_BALANCE_MAX_DIFF°C hotter, hold it back
         b1_held_back = False
@@ -383,6 +414,14 @@ class BoilerCoordinator(DataUpdateCoordinator):
                     f"Oprire Boiler 2 — temp={temp2:.1f}°C priority={b2_priority}"
                 )
                 await self._set_switch(relay_2, False)
+
+        # --- Solar schedule completion check ---
+        if sched_active_1 and temp1 is not None and temp1 >= sched_target:
+            rt[RUNTIME_SCHEDULE_DONE_1] = True
+            self._log_action(f"Program solar B1: {sched_target:.1f}\u00b0C atins! Program finalizat.")
+        if sched_active_2 and temp2 is not None and temp2 >= sched_target:
+            rt[RUNTIME_SCHEDULE_DONE_2] = True
+            self._log_action(f"Program solar B2: {sched_target:.1f}\u00b0C atins! Program finalizat.")
 
     async def _set_switch(self, entity_id: str, turn_on: bool) -> None:
         service = "turn_on" if turn_on else "turn_off"
@@ -455,6 +494,28 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 return STATUS_NO_SOLAR
             return STATUS_STANDBY
 
+        # Schedule status
+        sched_target = rt.get(RUNTIME_SCHEDULE_TARGET)
+        sched_deadline = rt.get(RUNTIME_SCHEDULE_DEADLINE)
+        sched_done_1: bool = rt.get(RUNTIME_SCHEDULE_DONE_1, False)
+        sched_done_2: bool = rt.get(RUNTIME_SCHEDULE_DONE_2, False)
+        now_aware = dt_util.now()
+        sched_base_active = (
+            sched_target is not None
+            and sched_deadline is not None
+            and sched_deadline > now_aware
+        )
+        both_done = sched_done_1 and sched_done_2
+
+        def _sched_status() -> str:
+            if sched_target is None or sched_deadline is None:
+                return STATUS_SCHEDULE_INACTIVE
+            if both_done:
+                return STATUS_SCHEDULE_DONE
+            if sched_base_active:
+                return STATUS_SCHEDULE_SOLAR
+            return STATUS_SCHEDULE_EXPIRED
+
         return {
             "boiler1_temp": temp1,
             "boiler2_temp": temp2,
@@ -467,5 +528,10 @@ class BoilerCoordinator(DataUpdateCoordinator):
             "grid_voltage": grid_voltage,
             "boiler1_status": _status(boiler1_on, temp1, max_temp_1, auto_1, b1_priority),
             "boiler2_status": _status(boiler2_on, temp2, max_temp_2, auto_2, b2_priority),
+            "schedule_status": _sched_status(),
+            "schedule_target": sched_target,
+            "schedule_deadline": sched_deadline,
+            "schedule_done_1": sched_done_1,
+            "schedule_done_2": sched_done_2,
             "action_log": list(self._action_log),
         }

@@ -33,6 +33,10 @@ from .const import (
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
+    RUNTIME_SCHEDULE_TARGET,
+    RUNTIME_SCHEDULE_DONE_1,
+    RUNTIME_SCHEDULE_DONE_2,
+    DEFAULT_SCHEDULE_TARGET,
 )
 from .coordinator import BoilerCoordinator
 
@@ -53,6 +57,10 @@ async def async_setup_entry(
             BoilerSurplusThresholdNumber(coordinator, entry, DEFAULT_MIN_SURPLUS),
             BoilerRatedPowerNumber(coordinator, entry, CONF_BOILER1_POWER, b1, "1", DEFAULT_BOILER_POWER),
             BoilerRatedPowerNumber(coordinator, entry, CONF_BOILER2_POWER, b2, "2", DEFAULT_BOILER_POWER),
+            ScheduleTargetTempNumber(
+                coordinator, entry, RUNTIME_SCHEDULE_TARGET,
+                DEFAULT_SCHEDULE_TARGET,
+            ),
         ]
     )
 
@@ -83,7 +91,7 @@ class _BoilerNumber(CoordinatorEntity, NumberEntity, RestoreEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler v1.0.20",
+            model="Solar Boiler v1.1.0",
         )
 
     @property
@@ -187,3 +195,43 @@ class BoilerRatedPowerNumber(_BoilerNumber):
     ) -> None:
         super().__init__(coordinator, entry, runtime_key, f"rated_power_{boiler_index}", default)
         self._attr_name = f"Putere nominală {boiler_name}"
+
+
+class ScheduleTargetTempNumber(_BoilerNumber):
+    """Target temperature for the shared solar-only heating schedule (applies to both boilers)."""
+
+    _attr_native_min_value = 30.0
+    _attr_native_max_value = 95.0
+    _attr_native_step = 1.0
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_icon = "mdi:thermometer-alert"
+    _attr_mode = NumberMode.SLIDER
+    _attr_name = "Temperatură program solar"
+
+    def __init__(
+        self,
+        coordinator: BoilerCoordinator,
+        entry: ConfigEntry,
+        runtime_key: str,
+        default: float,
+    ) -> None:
+        super().__init__(coordinator, entry, runtime_key, "schedule_target", default)
+
+    async def async_set_native_value(self, value: float) -> None:
+        rt = self.hass.data[DOMAIN][self._entry.entry_id]
+        rt[self._runtime_key] = value
+        # Reset both done flags so schedule can reactivate with the new target
+        rt.pop(RUNTIME_SCHEDULE_DONE_1, None)
+        rt.pop(RUNTIME_SCHEDULE_DONE_2, None)
+        self.async_write_ha_state()
+        await self.coordinator.async_refresh()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None and last.state not in ("unknown", "unavailable", None):
+            try:
+                value = float(last.state)
+                self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = value
+            except (ValueError, TypeError):
+                pass
