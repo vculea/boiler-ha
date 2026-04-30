@@ -74,6 +74,7 @@ from .const import (
     STATUS_MANUAL,
     STATUS_UNAVAILABLE,
     STATUS_SCHEDULE_SOLAR,
+    STATUS_SCHEDULE_HEATING,
     STATUS_SCHEDULE_DONE,
     STATUS_SCHEDULE_EXPIRED,
     STATUS_SCHEDULE_INACTIVE,
@@ -481,19 +482,6 @@ class BoilerCoordinator(DataUpdateCoordinator):
         b1_priority = (temp1 is not None and temp1 < max_temp_1 * 0.5) or high_voltage
         b2_priority = (temp2 is not None and temp2 < max_temp_2 * 0.5) or high_voltage
 
-        def _status(boiler_on: bool, temp: float | None, max_temp: float, auto: bool, priority: bool) -> str:
-            if not auto:
-                return STATUS_MANUAL
-            if temp is None:
-                return STATUS_UNAVAILABLE
-            if temp >= max_temp:
-                return STATUS_TARGET_REACHED
-            if boiler_on:
-                return STATUS_PRIORITY if priority else STATUS_HEATING
-            if not solar_producing and not priority:
-                return STATUS_NO_SOLAR
-            return STATUS_STANDBY
-
         # Schedule status
         sched_target = rt.get(RUNTIME_SCHEDULE_TARGET)
         sched_deadline = rt.get(RUNTIME_SCHEDULE_DEADLINE)
@@ -505,7 +493,27 @@ class BoilerCoordinator(DataUpdateCoordinator):
             and sched_deadline is not None
             and sched_deadline > now_aware
         )
+        # Apply schedule override to max_temp so status reflects actual effective target
+        eff_max_temp_1 = sched_target if (sched_base_active and not sched_done_1) else max_temp_1
+        eff_max_temp_2 = sched_target if (sched_base_active and not sched_done_2) else max_temp_2
+        sched_active_1_snap = sched_base_active and not sched_done_1
+        sched_active_2_snap = sched_base_active and not sched_done_2
         both_done = sched_done_1 and sched_done_2
+
+        def _status(boiler_on: bool, temp: float | None, eff_max: float, auto: bool, priority: bool, sched_active: bool) -> str:
+            if not auto:
+                return STATUS_MANUAL
+            if temp is None:
+                return STATUS_UNAVAILABLE
+            if temp >= eff_max:
+                return STATUS_TARGET_REACHED
+            if boiler_on:
+                if sched_active:
+                    return STATUS_SCHEDULE_HEATING
+                return STATUS_PRIORITY if priority else STATUS_HEATING
+            if not solar_producing and not priority:
+                return STATUS_NO_SOLAR
+            return STATUS_STANDBY
 
         def _sched_status() -> str:
             if sched_target is None or sched_deadline is None:
@@ -526,8 +534,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
             "solar_power": solar,
             "grid_export": grid_export,
             "grid_voltage": grid_voltage,
-            "boiler1_status": _status(boiler1_on, temp1, max_temp_1, auto_1, b1_priority),
-            "boiler2_status": _status(boiler2_on, temp2, max_temp_2, auto_2, b2_priority),
+            "boiler1_status": _status(boiler1_on, temp1, eff_max_temp_1, auto_1, b1_priority, sched_active_1_snap),
+            "boiler2_status": _status(boiler2_on, temp2, eff_max_temp_2, auto_2, b2_priority, sched_active_2_snap),
             "schedule_status": _sched_status(),
             "schedule_target": sched_target,
             "schedule_deadline": sched_deadline,

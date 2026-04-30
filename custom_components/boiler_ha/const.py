@@ -68,6 +68,7 @@ STATUS_UNAVAILABLE = "Senzor indisponibil"
 
 # Solar schedule status strings
 STATUS_SCHEDULE_SOLAR = "Program solar activ"
+STATUS_SCHEDULE_HEATING = "Încălzire program solar"
 STATUS_SCHEDULE_DONE = "Target solar atins"
 STATUS_SCHEDULE_EXPIRED = "Program solar expirat"
 STATUS_SCHEDULE_INACTIVE = "Inactiv"
