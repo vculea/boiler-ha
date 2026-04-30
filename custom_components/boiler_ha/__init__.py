@@ -16,9 +16,11 @@ from .const import (
     CONF_BOILER2_POWER,
     RUNTIME_AUTO_1,
     RUNTIME_AUTO_2,
+    RUNTIME_SCHEDULE_TARGET,
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
+    DEFAULT_SCHEDULE_TARGET,
 )
 from .coordinator import BoilerCoordinator
 
@@ -59,6 +61,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         CONF_BOILER2_POWER: entry.options.get(CONF_BOILER2_POWER, DEFAULT_BOILER_POWER),
         RUNTIME_AUTO_1: True,
         RUNTIME_AUTO_2: True,
+        # Schedule target initialized to default so the coordinator sees it even
+        # before the user explicitly moves the slider (slider shows default visually
+        # but doesn't write to rt until actually changed).
+        RUNTIME_SCHEDULE_TARGET: DEFAULT_SCHEDULE_TARGET,
+        # RUNTIME_SCHEDULE_DEADLINE intentionally absent (None = no active schedule)
     }
 
     coordinator = BoilerCoordinator(hass, entry)
