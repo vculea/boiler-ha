@@ -435,9 +435,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
             _b1_note = (
                 "supratensiune" if (b1_priority and high_voltage) else
                 "prio temp<50%" if b1_priority else
+                f"histerezis (repornire sub {max_temp_1 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_1 and not boiler1_on and not bypass_hyst_1) else
                 f"blocat (T1-T2={temp1 - temp2:.0f}°C)" if (b1_held_back and temp2 is not None) else
                 "blocat" if b1_held_back else
-                f"histerezis (repornire sub {max_temp_1 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_1 and not boiler1_on and not bypass_hyst_1) else
                 f"surplus {virtual_surplus:.0f}W ≥ {min_surplus:.0f}W" if should_run_1 else
                 f"surplus {virtual_surplus:.0f}W < {min_surplus:.0f}W"
             )
@@ -477,8 +477,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
             _b2_note = (
                 "supratensiune" if (b2_priority and high_voltage) else
                 "prio temp<50%" if b2_priority else
-                f"blocat (T2-T1={temp2 - (temp1 or 0):.0f}°C)" if b2_held_back else
                 f"histerezis (repornire sub {max_temp_2 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_2 and not boiler2_on and not bypass_hyst_2) else
+                f"blocat (T2-T1={temp2 - (temp1 or 0):.0f}°C)" if b2_held_back else
                 f"surplus {surplus_after_b1:.0f}W ≥ {min_surplus:.0f}W" if should_run_2 else
                 f"surplus {surplus_after_b1:.0f}W < {min_surplus:.0f}W"
             )
