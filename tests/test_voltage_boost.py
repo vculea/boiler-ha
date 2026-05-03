@@ -370,3 +370,58 @@ async def test_high_voltage_stays_false_in_hysteresis_band_when_not_active():
         "Voltage in hysteresis band from below must not activate high_voltage"
     )
 
+
+@pytest.mark.asyncio
+async def test_boost_based_on_current_temp_not_user_target():
+    """When overvoltage activates and temp has already exceeded max_temp due to thermal
+    inertia, the boosted target must be based on current temp (not user target) so the
+    boiler can actually start again.
+
+    Scenario from production: user target=70°C, temp=78.3°C due to thermal inertia.
+    Old code: boosted_target = 70 + 5 = 75°C  → temp still above → boiler never starts.
+    New code: boosted_target = 78.3 + 5 = 83.3°C → temp below boosted → boiler starts.
+    """
+    user_target = 70.0
+    actual_temp = 78.3  # temp already above target due to thermal inertia
+    coord, rt = _make_coordinator(temp1=actual_temp, temp2=actual_temp,
+                                  max_temp=user_target, voltage=255.0)
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
+
+    await coord._apply_control_logic()
+
+    expected = min(actual_temp + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+    assert rt[CONF_MAX_TEMP_1] == pytest.approx(expected, abs=0.01), (
+        f"Boosted target must be based on actual temp ({actual_temp}°C), not user target ({user_target}°C). "
+        f"Expected {expected}°C, got {rt[CONF_MAX_TEMP_1]}°C"
+    )
+    assert rt[CONF_MAX_TEMP_2] == pytest.approx(expected, abs=0.01)
+    # Original user target must be saved for restore
+    assert rt[RUNTIME_USER_MAX_TEMP_1] == user_target
+    assert rt[RUNTIME_USER_MAX_TEMP_2] == user_target
+
+
+@pytest.mark.asyncio
+async def test_boost_re_raises_when_temp_exceeds_boosted_target():
+    """If temp overshoots the boosted target (further thermal inertia), the target must
+    be raised again so the boiler can restart."""
+    user_target = 70.0
+    boosted_target = min(user_target + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)  # 75°C
+    overshoot_temp = boosted_target + 2.0  # 77°C — above the boosted target
+
+    coord, rt = _make_coordinator(temp1=overshoot_temp, temp2=overshoot_temp,
+                                  max_temp=boosted_target, voltage=255.0)
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
+    # Simulate boost already activated (RUNTIME_USER_MAX_TEMP saved from a prior cycle)
+    rt[RUNTIME_USER_MAX_TEMP_1] = user_target
+    rt[RUNTIME_USER_MAX_TEMP_2] = user_target
+    rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = datetime.now() - timedelta(seconds=10)
+    rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = datetime.now() - timedelta(seconds=10)
+
+    await coord._apply_control_logic()
+
+    expected = min(overshoot_temp + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+    assert rt[CONF_MAX_TEMP_1] == pytest.approx(expected, abs=0.01), (
+        f"Target must be re-raised when temp exceeds boosted target. "
+        f"Expected {expected}°C, got {rt[CONF_MAX_TEMP_1]}°C"
+    )
+

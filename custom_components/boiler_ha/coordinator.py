@@ -300,18 +300,32 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # restarts and keeps running to absorb the excess energy.
         # The original target is saved in RUNTIME_USER_MAX_TEMP and restored when voltage normalises.
         if high_voltage:
-            if temp1 is not None and temp1 >= max_temp_1 and RUNTIME_USER_MAX_TEMP_1 not in rt and not sched_active_1:
-                rt[RUNTIME_USER_MAX_TEMP_1] = max_temp_1
-                rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = datetime.now()
-                max_temp_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
-                rt[CONF_MAX_TEMP_1] = max_temp_1
-                self._log_action(f"Supratensiune: target Boiler 1 ridicat la {max_temp_1:.1f}°C")
-            if temp2 is not None and temp2 >= max_temp_2 and RUNTIME_USER_MAX_TEMP_2 not in rt and not sched_active_2:
-                rt[RUNTIME_USER_MAX_TEMP_2] = max_temp_2
-                rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = datetime.now()
-                max_temp_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
-                rt[CONF_MAX_TEMP_2] = max_temp_2
-                self._log_action(f"Supratensiune: target Boiler 2 ridicat la {max_temp_2:.1f}°C")
+            if temp1 is not None and not sched_active_1:
+                if RUNTIME_USER_MAX_TEMP_1 not in rt and temp1 >= max_temp_1:
+                    rt[RUNTIME_USER_MAX_TEMP_1] = max_temp_1
+                    rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = datetime.now()
+                    # Base boost on current temp (not just user target) to handle thermal inertia
+                    max_temp_1 = min(max(temp1, max_temp_1) + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+                    rt[CONF_MAX_TEMP_1] = max_temp_1
+                    self._log_action(f"Supratensiune: target Boiler 1 ridicat la {max_temp_1:.1f}°C")
+                elif RUNTIME_USER_MAX_TEMP_1 in rt and temp1 >= max_temp_1:
+                    # Thermal inertia pushed temp above boosted target — raise again
+                    max_temp_1 = min(temp1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+                    rt[CONF_MAX_TEMP_1] = max_temp_1
+                    self._log_action(f"Supratensiune: target Boiler 1 ajustat la {max_temp_1:.1f}°C")
+            if temp2 is not None and not sched_active_2:
+                if RUNTIME_USER_MAX_TEMP_2 not in rt and temp2 >= max_temp_2:
+                    rt[RUNTIME_USER_MAX_TEMP_2] = max_temp_2
+                    rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = datetime.now()
+                    # Base boost on current temp (not just user target) to handle thermal inertia
+                    max_temp_2 = min(max(temp2, max_temp_2) + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+                    rt[CONF_MAX_TEMP_2] = max_temp_2
+                    self._log_action(f"Supratensiune: target Boiler 2 ridicat la {max_temp_2:.1f}°C")
+                elif RUNTIME_USER_MAX_TEMP_2 in rt and temp2 >= max_temp_2:
+                    # Thermal inertia pushed temp above boosted target — raise again
+                    max_temp_2 = min(temp2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+                    rt[CONF_MAX_TEMP_2] = max_temp_2
+                    self._log_action(f"Supratensiune: target Boiler 2 ajustat la {max_temp_2:.1f}°C")
         else:
             # Restore original target only after the boost has been active long enough.
             # This prevents rapid oscillation: boilers start → voltage drops → target restored

@@ -252,6 +252,8 @@ tests/
 | `test_high_voltage_stays_true_in_hysteresis_band`                  |   S10    | Rămâne activ în banda 245–250V                                                               |
 | `test_high_voltage_clears_below_release_threshold`                 |   S10    | Dezactivare abia sub 245V                                                                    |
 | `test_high_voltage_stays_false_in_hysteresis_band_when_not_active` |   S10    | Banda nu activează flag-ul de la zero                                                        |
+| `test_boost_based_on_current_temp_not_user_target`                 |    S9    | Boost bazat pe temp curentă (nu pe target user) — fix inerție termică                        |
+| `test_boost_re_raises_when_temp_exceeds_boosted_target`            |    S9    | Re-ridicare target dacă inerția termică depășește targetul boostat                           |
 | `test_s12_auto_off_boiler_not_started`                             |   S12a   | Auto OFF → releu nemodificat (nu pornește)                                                   |
 | `test_s12_auto_off_running_boiler_not_stopped`                     |   S12b   | Auto OFF → releu nemodificat (nu oprește)                                                    |
 | `test_s12_temp_protection_still_fires_when_auto_off`               |   S12c   | Protecție supraîncălzire activă chiar și cu auto OFF                                         |
