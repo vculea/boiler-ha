@@ -75,7 +75,7 @@ class BoilerAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler v1.1.6",
+            model="Solar Boiler v1.1.7",
         )
 
     @property
