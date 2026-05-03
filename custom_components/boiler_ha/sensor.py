@@ -54,6 +54,7 @@ async def async_setup_entry(
         BoilerStatusSensor(coordinator, entry, b2, "boiler2_status", "2"),
         ScheduleStatusSensor(coordinator, entry),
         ActionLogSensor(coordinator, entry),
+        DiagnosticLogSensor(coordinator, entry),
     ]
     async_add_entities(entities)
 
@@ -77,7 +78,7 @@ class _BoilerSensor(CoordinatorEntity, SensorEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler v1.1.3",
+            model="Solar Boiler v1.1.5",
         )
 
 
@@ -316,6 +317,38 @@ class ActionLogSensor(_BoilerSensor):
                 f"actiune_{i + 1}": entries[i] if i < len(entries) else "—"
                 for i in range(6)
             },
+        }
+
+
+# ── Diagnostic log sensor ──────────────────────────────────────────────────────
+
+class DiagnosticLogSensor(_BoilerSensor):
+    """Exposes the full per-cycle decision trace for all 20 recent cycles."""
+
+    _attr_name = "Jurnal diagnostic"
+    _attr_icon = "mdi:text-box-search"
+
+    def __init__(self, coordinator: BoilerCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_diagnostic_log"
+
+    @property
+    def native_value(self) -> str:
+        """Timestamp of the most recent cycle (HA state is capped at 255 chars)."""
+        if self.coordinator.data is None:
+            return "—"
+        log: list[str] = self.coordinator.data.get("cycle_log", [])
+        if not log:
+            return "—"
+        return log[0].split("\n")[0][:255]
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        if self.coordinator.data is None:
+            return {}
+        log: list[str] = self.coordinator.data.get("cycle_log", [])
+        return {
+            "log": "\n\n".join(log) if log else "—",
         }
 
 

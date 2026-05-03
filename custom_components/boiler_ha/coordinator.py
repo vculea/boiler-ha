@@ -98,6 +98,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self._unsub_listeners: list = []
         self._action_log: deque[str] = deque(maxlen=6)
+        self._cycle_log: deque[str] = deque(maxlen=20)
+        self._cycle_buf: list[str] = []
 
     # ------------------------------------------------------------------
     # Setup / teardown
@@ -162,6 +164,16 @@ class BoilerCoordinator(DataUpdateCoordinator):
         if log is not None:
             timestamp = datetime.now().strftime("%H:%M:%S")
             log.append(f"[{timestamp}] {message}")
+        buf = getattr(self, "_cycle_buf", None)
+        if buf is not None:
+            buf.append(f"  → {message}")
+
+    def _clog(self, line: str) -> None:
+        """Append a debug line to the current cycle buffer and to the HA log."""
+        _LOGGER.debug(line)
+        buf = getattr(self, "_cycle_buf", None)
+        if buf is not None:
+            buf.append(line)
 
     def _float_state(self, entity_id: str) -> float | None:
         state = self.hass.states.get(entity_id)
@@ -183,6 +195,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
     async def _apply_control_logic(self) -> None:
         cfg = self.entry.data
         rt = self._runtime()
+        self._cycle_buf = []
 
         relay_1 = cfg[CONF_RELAY_1]
         relay_2 = cfg[CONF_RELAY_2]
@@ -236,6 +249,13 @@ class BoilerCoordinator(DataUpdateCoordinator):
         if sched_active_2:
             max_temp_2 = sched_target
 
+        self._clog(
+            f"schedule  active={sched_base_active} "
+            f"target={f'{sched_target:.1f}°C' if sched_target is not None else '—'} "
+            f"deadline={sched_deadline.strftime('%H:%M') if sched_deadline else '—'} "
+            f"done1={sched_done_1} done2={sched_done_2}"
+        )
+
         # --- Safety guards ---
         if temp1 is None:
             _LOGGER.warning("Senzor temperatură Boiler 1 indisponibil — nu se controlează releul")
@@ -254,12 +274,11 @@ class BoilerCoordinator(DataUpdateCoordinator):
         if boiler2_on:
             virtual_surplus += boiler2_power
 
-        _LOGGER.debug(
-            "Boiler control — temp1=%.1f°C temp2=%.1f°C grid_export=%.0fW "
-            "virtual_surplus=%.0fW B1=%s B2=%s",
-            temp1 or 0, temp2 or 0, grid_export, virtual_surplus,
-            "ON" if boiler1_on else "OFF",
-            "ON" if boiler2_on else "OFF",
+        self._clog(
+            f"sensors  T1={f'{temp1:.1f}' if temp1 is not None else 'N/A'}°C "
+            f"T2={f'{temp2:.1f}' if temp2 is not None else 'N/A'}°C "
+            f"grid={grid_export:+.0f}W vs={virtual_surplus:.0f}W "
+            f"B1={'ON' if boiler1_on else 'OFF'} B2={'ON' if boiler2_on else 'OFF'}"
         )
 
         # --- Voltage detection (with hysteresis) ---
@@ -293,6 +312,12 @@ class BoilerCoordinator(DataUpdateCoordinator):
             if not high_voltage:
                 rt.pop(RUNTIME_HIGH_VOLTAGE_SINCE, None)
         rt[RUNTIME_HIGH_VOLTAGE] = high_voltage
+
+        self._clog(
+            f"voltage  {f'{grid_voltage:.1f}V' if grid_voltage is not None else 'N/A'} "
+            f"prev={prev_high_voltage} → high={high_voltage} "
+            f"(timer={'%.0fs pending' % (datetime.now() - rt[RUNTIME_HIGH_VOLTAGE_SINCE]).total_seconds() if RUNTIME_HIGH_VOLTAGE_SINCE in rt else 'cleared'})"
+        )
 
         # --- Overvoltage target boost ---
         # When overvoltage is active and a boiler has already reached its user-set target,
@@ -375,9 +400,10 @@ class BoilerCoordinator(DataUpdateCoordinator):
             elif diff < -TEMP_BALANCE_MAX_DIFF:
                 b2_held_back = True   # boiler2 too hot vs boiler1 — let boiler1 catch up
 
-        _LOGGER.debug(
-            "Priority — B1_prio=%s held=%s  B2_prio=%s held=%s  voltage=%.1fV",
-            b1_priority, b1_held_back, b2_priority, b2_held_back, grid_voltage or 0,
+        self._clog(
+            f"priority  B1_prio={b1_priority} held={b1_held_back}  "
+            f"B2_prio={b2_priority} held={b2_held_back}  "
+            f"voltage={f'{grid_voltage:.1f}V' if grid_voltage is not None else 'N/A'}"
         )
 
         # --- Auto control: Boiler 1 (has priority over B2 in solar mode) ---
@@ -394,6 +420,11 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 should_run_1 = temp_ok_1   # ignore surplus
             else:
                 should_run_1 = (virtual_surplus >= min_surplus) and temp_ok_1
+            self._clog(
+                f"B1  T={temp1:.1f}/{max_temp_1:.0f}°C relay={'ON' if boiler1_on else 'OFF'} "
+                f"bypass={bypass_hyst_1} ok={temp_ok_1} vs_ok={virtual_surplus >= min_surplus} "
+                f"prio={b1_priority} held={b1_held_back} → {'RUN' if should_run_1 else 'STOP'}"
+            )
             if should_run_1 and not boiler1_on:
                 self._log_action(
                     f"Pornire Boiler 1 — surplus={virtual_surplus:.0f}W temp={temp1:.1f}°C priority={b1_priority}"
@@ -416,9 +447,15 @@ class BoilerCoordinator(DataUpdateCoordinator):
             temp_ok_2 = temp2 < max_temp_2 if (boiler2_on or bypass_hyst_2) else temp2 < (max_temp_2 - TEMP_HYSTERESIS)
             if b2_priority and not b2_held_back:
                 should_run_2 = temp_ok_2   # ignore surplus
+                surplus_after_b1 = virtual_surplus - (boiler1_power if boiler1_on else 0)
             else:
                 surplus_after_b1 = virtual_surplus - (boiler1_power if boiler1_on else 0)
                 should_run_2 = (surplus_after_b1 >= min_surplus) and temp_ok_2
+            self._clog(
+                f"B2  T={temp2:.1f}/{max_temp_2:.0f}°C relay={'ON' if boiler2_on else 'OFF'} "
+                f"bypass={bypass_hyst_2} ok={temp_ok_2} after_b1={surplus_after_b1:.0f}W "
+                f"prio={b2_priority} held={b2_held_back} → {'RUN' if should_run_2 else 'STOP'}"
+            )
             if should_run_2 and not boiler2_on:
                 self._log_action(
                     f"Pornire Boiler 2 — temp={temp2:.1f}°C priority={b2_priority}"
@@ -437,6 +474,16 @@ class BoilerCoordinator(DataUpdateCoordinator):
         if sched_active_2 and temp2 is not None and temp2 >= sched_target:
             rt[RUNTIME_SCHEDULE_DONE_2] = True
             self._log_action(f"Program solar B2: {sched_target:.1f}\u00b0C atins! Program finalizat.")
+
+        # --- Commit diagnostic cycle log ---
+        buf = getattr(self, "_cycle_buf", None)
+        if buf:
+            ts = datetime.now().strftime("%H:%M:%S")
+            block = f"[{ts}]\n" + "\n".join(f"  {ln}" for ln in buf)
+            cycle_log = getattr(self, "_cycle_log", None)
+            if cycle_log is not None:
+                cycle_log.append(block)
+            self._cycle_buf = []
 
     async def _set_switch(self, entity_id: str, turn_on: bool) -> None:
         service = "turn_on" if turn_on else "turn_off"
@@ -556,4 +603,5 @@ class BoilerCoordinator(DataUpdateCoordinator):
             "schedule_done_1": sched_done_1,
             "schedule_done_2": sched_done_2,
             "action_log": list(self._action_log),
+            "cycle_log": list(reversed(list(getattr(self, "_cycle_log", [])))),
         }
