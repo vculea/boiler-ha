@@ -98,7 +98,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self._unsub_listeners: list = []
         self._action_log: deque[str] = deque(maxlen=6)
-        self._cycle_log: deque[str] = deque(maxlen=20)
+        self._cycle_log: deque[str] = deque(maxlen=4)
         self._cycle_buf: list[str] = []
 
     # ------------------------------------------------------------------
@@ -249,12 +249,18 @@ class BoilerCoordinator(DataUpdateCoordinator):
         if sched_active_2:
             max_temp_2 = sched_target
 
-        self._clog(
-            f"schedule  active={sched_base_active} "
-            f"target={f'{sched_target:.1f}°C' if sched_target is not None else '—'} "
-            f"deadline={sched_deadline.strftime('%H:%M') if sched_deadline else '—'} "
-            f"done1={sched_done_1} done2={sched_done_2}"
-        )
+        if sched_target is None:
+            self._clog("program: inactiv")
+        elif sched_base_active:
+            self._clog(
+                f"program: activ  {sched_target:.0f}°C → {sched_deadline.strftime('%H:%M')}  "
+                f"gata={'✓' if sched_done_1 else '✗'}/{'✓' if sched_done_2 else '✗'}"
+            )
+        else:
+            self._clog(
+                f"program: expirat  {sched_target:.0f}°C  "
+                f"gata={'✓' if sched_done_1 else '✗'}/{'✓' if sched_done_2 else '✗'}"
+            )
 
         # --- Safety guards ---
         if temp1 is None:
@@ -275,9 +281,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
             virtual_surplus += boiler2_power
 
         self._clog(
-            f"sensors  T1={f'{temp1:.1f}' if temp1 is not None else 'N/A'}°C "
-            f"T2={f'{temp2:.1f}' if temp2 is not None else 'N/A'}°C "
-            f"grid={grid_export:+.0f}W vs={virtual_surplus:.0f}W "
+            f"T1={f'{temp1:.1f}' if temp1 is not None else 'N/A'}°C  "
+            f"T2={f'{temp2:.1f}' if temp2 is not None else 'N/A'}°C  "
+            f"rețea={grid_export:+.0f}W  surplus={virtual_surplus:.0f}W  "
             f"B1={'ON' if boiler1_on else 'OFF'} B2={'ON' if boiler2_on else 'OFF'}"
         )
 
@@ -313,11 +319,17 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 rt.pop(RUNTIME_HIGH_VOLTAGE_SINCE, None)
         rt[RUNTIME_HIGH_VOLTAGE] = high_voltage
 
-        self._clog(
-            f"voltage  {f'{grid_voltage:.1f}V' if grid_voltage is not None else 'N/A'} "
-            f"prev={prev_high_voltage} → high={high_voltage} "
-            f"(timer={'%.0fs pending' % (datetime.now() - rt[RUNTIME_HIGH_VOLTAGE_SINCE]).total_seconds() if RUNTIME_HIGH_VOLTAGE_SINCE in rt else 'cleared'})"
-        )
+        if grid_voltage is None:
+            self._clog("tensiune: N/A")
+        elif high_voltage:
+            self._clog(f"tensiune: {grid_voltage:.1f}V  ⚠ SUPRATENSIUNE")
+        elif RUNTIME_HIGH_VOLTAGE_SINCE in rt:
+            _v_elapsed = (datetime.now() - rt[RUNTIME_HIGH_VOLTAGE_SINCE]).total_seconds()
+            self._clog(f"tensiune: {grid_voltage:.1f}V  trigger {_v_elapsed:.0f}s/{OVERVOLTAGE_TRIGGER_DELAY}s")
+        elif grid_voltage >= VOLTAGE_PRIORITY_RELEASE:
+            self._clog(f"tensiune: {grid_voltage:.1f}V  histerezis")
+        else:
+            self._clog(f"tensiune: {grid_voltage:.1f}V  normal")
 
         # --- Overvoltage target boost ---
         # When overvoltage is active and a boiler has already reached its user-set target,
@@ -400,12 +412,6 @@ class BoilerCoordinator(DataUpdateCoordinator):
             elif diff < -TEMP_BALANCE_MAX_DIFF:
                 b2_held_back = True   # boiler2 too hot vs boiler1 — let boiler1 catch up
 
-        self._clog(
-            f"priority  B1_prio={b1_priority} held={b1_held_back}  "
-            f"B2_prio={b2_priority} held={b2_held_back}  "
-            f"voltage={f'{grid_voltage:.1f}V' if grid_voltage is not None else 'N/A'}"
-        )
-
         # --- Auto control: Boiler 1 (has priority over B2 in solar mode) ---
         # Hysteresis: if boiler is ON keep running until max_temp; if OFF don't start
         # until temp drops TEMP_HYSTERESIS degrees below the target.
@@ -420,11 +426,22 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 should_run_1 = temp_ok_1   # ignore surplus
             else:
                 should_run_1 = (virtual_surplus >= min_surplus) and temp_ok_1
-            self._clog(
-                f"B1  T={temp1:.1f}/{max_temp_1:.0f}°C relay={'ON' if boiler1_on else 'OFF'} "
-                f"bypass={bypass_hyst_1} ok={temp_ok_1} vs_ok={virtual_surplus >= min_surplus} "
-                f"prio={b1_priority} held={b1_held_back} → {'RUN' if should_run_1 else 'STOP'}"
+            _b1_act = (
+                "→ PORNIT" if (not boiler1_on and should_run_1) else
+                "→ OPRIT" if (boiler1_on and not should_run_1) else
+                "continuă" if boiler1_on else
+                "standby"
             )
+            _b1_note = (
+                "supratensiune" if (b1_priority and high_voltage) else
+                "prio temp<50%" if b1_priority else
+                f"blocat (T1-T2={temp1 - temp2:.0f}°C)" if (b1_held_back and temp2 is not None) else
+                "blocat" if b1_held_back else
+                f"histerezis (repornire sub {max_temp_1 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_1 and not boiler1_on and not bypass_hyst_1) else
+                f"surplus {virtual_surplus:.0f}W ≥ {min_surplus:.0f}W" if should_run_1 else
+                f"surplus {virtual_surplus:.0f}W < {min_surplus:.0f}W"
+            )
+            self._clog(f"B1 [{_b1_act}]  {temp1:.1f}/{max_temp_1:.0f}°C  {_b1_note}")
             if should_run_1 and not boiler1_on:
                 self._log_action(
                     f"Pornire Boiler 1 — surplus={virtual_surplus:.0f}W temp={temp1:.1f}°C priority={b1_priority}"
@@ -451,11 +468,21 @@ class BoilerCoordinator(DataUpdateCoordinator):
             else:
                 surplus_after_b1 = virtual_surplus - (boiler1_power if boiler1_on else 0)
                 should_run_2 = (surplus_after_b1 >= min_surplus) and temp_ok_2
-            self._clog(
-                f"B2  T={temp2:.1f}/{max_temp_2:.0f}°C relay={'ON' if boiler2_on else 'OFF'} "
-                f"bypass={bypass_hyst_2} ok={temp_ok_2} after_b1={surplus_after_b1:.0f}W "
-                f"prio={b2_priority} held={b2_held_back} → {'RUN' if should_run_2 else 'STOP'}"
+            _b2_act = (
+                "→ PORNIT" if (not boiler2_on and should_run_2) else
+                "→ OPRIT" if (boiler2_on and not should_run_2) else
+                "continuă" if boiler2_on else
+                "standby"
             )
+            _b2_note = (
+                "supratensiune" if (b2_priority and high_voltage) else
+                "prio temp<50%" if b2_priority else
+                f"blocat (T2-T1={temp2 - (temp1 or 0):.0f}°C)" if b2_held_back else
+                f"histerezis (repornire sub {max_temp_2 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_2 and not boiler2_on and not bypass_hyst_2) else
+                f"surplus {surplus_after_b1:.0f}W ≥ {min_surplus:.0f}W" if should_run_2 else
+                f"surplus {surplus_after_b1:.0f}W < {min_surplus:.0f}W"
+            )
+            self._clog(f"B2 [{_b2_act}]  {temp2:.1f}/{max_temp_2:.0f}°C  {_b2_note}")
             if should_run_2 and not boiler2_on:
                 self._log_action(
                     f"Pornire Boiler 2 — temp={temp2:.1f}°C priority={b2_priority}"
