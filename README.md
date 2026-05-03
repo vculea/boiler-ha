@@ -205,6 +205,7 @@ Testele nu necesită o instalare completă de Home Assistant. Modulele HA sunt s
 
 ```bash
 uv run --with pytest --with pytest-asyncio python -m pytest tests/ -v
+uv run --with pytest --with pytest-asyncio python -m pytest tests/ -q 2>&1 | tail -3 && git add -A && git commit -m "Release v1.1.8" && git tag v1.1.8 && git push origin main --tags
 ```
 
 ### Rulare cu un virtualenv existent
