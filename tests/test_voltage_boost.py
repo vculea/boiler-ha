@@ -229,6 +229,48 @@ async def test_restore_on_voltage_drop():
     assert RUNTIME_USER_MAX_TEMP_2 not in rt
 
 
+@pytest.mark.asyncio
+async def test_restore_uses_user_updated_target_during_boost():
+    """When the user changes max_temp while a boost is active, the new value must be
+    restored (not the stale pre-boost value) when voltage normalises."""
+    original_target = 52.0
+    coord, rt = _make_coordinator(temp1=original_target, temp2=original_target,
+                                  max_temp=original_target, voltage=255.0)
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
+
+    # Cycle 1: overvoltage → boost activates, saves original_target (52) in RUNTIME_USER_MAX_TEMP_1
+    await coord._apply_control_logic()
+    assert RUNTIME_USER_MAX_TEMP_1 in rt
+    assert rt[RUNTIME_USER_MAX_TEMP_1] == original_target
+
+    # Simulate user changing the slider to 65 °C while the boost is still active.
+    # number.py now also updates RUNTIME_USER_MAX_TEMP_1 when boost is active.
+    user_new_target = 65.0
+    rt[CONF_MAX_TEMP_1] = user_new_target
+    rt[RUNTIME_USER_MAX_TEMP_1] = user_new_target  # <- fix under test
+
+    # Simulate minimum hold time elapsed
+    past_time = datetime.now() - timedelta(seconds=VOLTAGE_BOOST_MIN_DURATION + 1)
+    rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = past_time
+    rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = past_time
+
+    # Cycle 2: voltage drops back to normal
+    coord._float_state = lambda eid: {  # type: ignore[method-assign]
+        "sensor.temp1": 54.0,
+        "sensor.temp2": 54.0,
+        "sensor.solar": 3000.0,
+        "sensor.grid": 2000.0,
+        "sensor.voltage": VOLTAGE_PRIORITY_RELEASE - 1.0,
+    }.get(eid)
+
+    await coord._apply_control_logic()
+
+    assert rt[CONF_MAX_TEMP_1] == user_new_target, (
+        f"Expected {user_new_target}°C to be restored, got {rt[CONF_MAX_TEMP_1]}°C"
+    )
+    assert RUNTIME_USER_MAX_TEMP_1 not in rt
+
+
 # ---------------------------------------------------------------------------
 # Voltage hysteresis tests
 # ---------------------------------------------------------------------------

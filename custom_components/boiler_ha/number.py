@@ -36,6 +36,8 @@ from .const import (
     RUNTIME_SCHEDULE_TARGET,
     RUNTIME_SCHEDULE_DONE_1,
     RUNTIME_SCHEDULE_DONE_2,
+    RUNTIME_USER_MAX_TEMP_1,
+    RUNTIME_USER_MAX_TEMP_2,
     DEFAULT_SCHEDULE_TARGET,
 )
 from .coordinator import BoilerCoordinator
@@ -91,7 +93,7 @@ class _BoilerNumber(CoordinatorEntity, NumberEntity, RestoreEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler v1.1.2",
+            model="Solar Boiler v1.1.3",
         )
 
     @property
@@ -130,8 +132,14 @@ class BoilerMaxTempNumber(_BoilerNumber):
         self._boiler_name = boiler_name
 
     async def async_set_native_value(self, value: float) -> None:
-        old = self.hass.data[DOMAIN][self._entry.entry_id].get(self._runtime_key)
-        self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = value
+        rt = self.hass.data[DOMAIN][self._entry.entry_id]
+        old = rt.get(self._runtime_key)
+        rt[self._runtime_key] = value
+        # If a voltage boost is currently active, also update the saved pre-boost target
+        # so that the correct user value is restored when the boost ends.
+        user_key = RUNTIME_USER_MAX_TEMP_1 if self._runtime_key == CONF_MAX_TEMP_1 else RUNTIME_USER_MAX_TEMP_2
+        if user_key in rt:
+            rt[user_key] = value
         self.async_write_ha_state()
         if old is not None and old != value:
             self.coordinator._log_action(

@@ -226,40 +226,41 @@ tests/
 
 ### Ce acoperă testele actuale
 
-| Test                                                               | Scenariu | Comportament verificat                                     |
-| ------------------------------------------------------------------ | :------: | ---------------------------------------------------------- |
-| `test_s1_normal_solar_heating_b1`                                  |    S1    | B1 pornește când surplus ≥ prag și temp sub target         |
-| `test_s1_normal_solar_heating_b2`                                  |    S1    | B2 pornește când surplus acoperă ambii boileri             |
-| `test_s2_insufficient_surplus_b1_stays_off`                        |   S2a    | B1 nu pornește când surplus < prag                         |
-| `test_s2_insufficient_surplus_b1_turns_off`                        |   S2b    | B1 se oprește când virtual surplus scade sub prag          |
-| `test_boiler_does_not_restart_just_below_target`                   |    S4    | Nu repornește la 1°C sub target (în bandă histerezis)      |
-| `test_boiler_does_not_restart_at_exact_hysteresis_boundary`        |    S4    | Nu repornește exact la `target − 5°C` (strict `<`)         |
-| `test_boiler_restarts_below_hysteresis_threshold`                  |    S5    | Repornește sub `target − 5°C`                              |
-| `test_boiler_keeps_running_up_to_target_while_on`                  |    S6    | Releu ON în bandă — continuă fără oprire                   |
-| `test_two_cycle_sequence_off_then_restart`                         | S3+S4+S5 | Ciclu complet: target → OFF → bandă → sub prag → repornire |
-| `test_s7_low_temp_priority_ignores_surplus`                        |    S7    | temp < 50% din target → pornire forțată fără surplus       |
-| `test_s7_no_priority_when_temp_above_half_target`                  |    S7    | Fără prioritate când temp > 50% din target                 |
-| `test_s8_overvoltage_forces_start_with_low_surplus`                |    S8    | Supratensiune → ambii boileri pornesc fără surplus         |
-| `test_boost_activates_when_overvoltage_and_target_reached`         |    S9    | Target +5°C la supratensiune și temp atinsă                |
-| `test_boost_caps_at_default_max_temp`                              |    S9    | Target boostat nu depășește 90°C                           |
-| `test_no_boost_when_temp_below_target`                             |    S9    | Fără boost dacă temp nu a atins targetul                   |
-| `test_no_boost_when_voltage_normal`                                |    S9    | Fără boost la tensiune normală                             |
-| `test_no_double_boost`                                             |    S9    | Al doilea ciclu sub supratensiune nu boostează din nou     |
-| `test_restore_on_voltage_drop`                                     |   S11    | Target restaurat când tensiunea revine la normal           |
-| `test_high_voltage_activates_above_threshold`                      |    S8    | Flag `high_voltage` activ la > 250V                        |
-| `test_high_voltage_not_set_below_threshold`                        |    S8    | Flag inactiv sub 250V                                      |
-| `test_high_voltage_stays_true_in_hysteresis_band`                  |   S10    | Rămâne activ în banda 245–250V                             |
-| `test_high_voltage_clears_below_release_threshold`                 |   S10    | Dezactivare abia sub 245V                                  |
-| `test_high_voltage_stays_false_in_hysteresis_band_when_not_active` |   S10    | Banda nu activează flag-ul de la zero                      |
-| `test_s12_auto_off_boiler_not_started`                             |   S12a   | Auto OFF → releu nemodificat (nu pornește)                 |
-| `test_s12_auto_off_running_boiler_not_stopped`                     |   S12b   | Auto OFF → releu nemodificat (nu oprește)                  |
-| `test_s12_temp_protection_still_fires_when_auto_off`               |   S12c   | Protecție supraîncălzire activă chiar și cu auto OFF       |
-| `test_s13_sensor_unavailable_boiler_not_started`                   |   S13a   | Senzor indisponibil → releu OFF nemodificat                |
-| `test_s13_sensor_unavailable_running_boiler_not_stopped`           |   S13b   | Senzor indisponibil → releu ON nemodificat                 |
-| `test_s14_b2_blocked_when_surplus_consumed_by_b1`                  |   S14    | B2 blocat când surplusul rămas după B1 e insuficient       |
-| `test_s15_b2_starts_when_surplus_covers_both`                      |   S15    | B2 pornește când surplusul acoperă ambii boileri           |
-| `test_s16_b1_held_back_when_too_hot_vs_b2`                         |   S16    | B1 ținut pe loc când e cu >5°C mai cald decât B2           |
-| `test_s17_b2_held_back_when_too_hot_vs_b1`                         |   S17    | B2 ținut pe loc când e cu >5°C mai cald decât B1           |
+| Test                                                               | Scenariu | Comportament verificat                                                                       |
+| ------------------------------------------------------------------ | :------: | -------------------------------------------------------------------------------------------- |
+| `test_s1_normal_solar_heating_b1`                                  |    S1    | B1 pornește când surplus ≥ prag și temp sub target                                           |
+| `test_s1_normal_solar_heating_b2`                                  |    S1    | B2 pornește când surplus acoperă ambii boileri                                               |
+| `test_s2_insufficient_surplus_b1_stays_off`                        |   S2a    | B1 nu pornește când surplus < prag                                                           |
+| `test_s2_insufficient_surplus_b1_turns_off`                        |   S2b    | B1 se oprește când virtual surplus scade sub prag                                            |
+| `test_boiler_does_not_restart_just_below_target`                   |    S4    | Nu repornește la 1°C sub target (în bandă histerezis)                                        |
+| `test_boiler_does_not_restart_at_exact_hysteresis_boundary`        |    S4    | Nu repornește exact la `target − 5°C` (strict `<`)                                           |
+| `test_boiler_restarts_below_hysteresis_threshold`                  |    S5    | Repornește sub `target − 5°C`                                                                |
+| `test_boiler_keeps_running_up_to_target_while_on`                  |    S6    | Releu ON în bandă — continuă fără oprire                                                     |
+| `test_two_cycle_sequence_off_then_restart`                         | S3+S4+S5 | Ciclu complet: target → OFF → bandă → sub prag → repornire                                   |
+| `test_s7_low_temp_priority_ignores_surplus`                        |    S7    | temp < 50% din target → pornire forțată fără surplus                                         |
+| `test_s7_no_priority_when_temp_above_half_target`                  |    S7    | Fără prioritate când temp > 50% din target                                                   |
+| `test_s8_overvoltage_forces_start_with_low_surplus`                |    S8    | Supratensiune → ambii boileri pornesc fără surplus                                           |
+| `test_boost_activates_when_overvoltage_and_target_reached`         |    S9    | Target +5°C la supratensiune și temp atinsă                                                  |
+| `test_boost_caps_at_default_max_temp`                              |    S9    | Target boostat nu depășește 90°C                                                             |
+| `test_no_boost_when_temp_below_target`                             |    S9    | Fără boost dacă temp nu a atins targetul                                                     |
+| `test_no_boost_when_voltage_normal`                                |    S9    | Fără boost la tensiune normală                                                               |
+| `test_no_double_boost`                                             |    S9    | Al doilea ciclu sub supratensiune nu boostează din nou                                       |
+| `test_restore_on_voltage_drop`                                     |   S11    | Target restaurat când tensiunea revine la normal                                             |
+| `test_restore_uses_user_updated_target_during_boost`               |   S11    | Dacă userul schimbă targetul în timpul boost-ului, valoarea nouă e restaurată (nu cea veche) |
+| `test_high_voltage_activates_above_threshold`                      |    S8    | Flag `high_voltage` activ la > 250V                                                          |
+| `test_high_voltage_not_set_below_threshold`                        |    S8    | Flag inactiv sub 250V                                                                        |
+| `test_high_voltage_stays_true_in_hysteresis_band`                  |   S10    | Rămâne activ în banda 245–250V                                                               |
+| `test_high_voltage_clears_below_release_threshold`                 |   S10    | Dezactivare abia sub 245V                                                                    |
+| `test_high_voltage_stays_false_in_hysteresis_band_when_not_active` |   S10    | Banda nu activează flag-ul de la zero                                                        |
+| `test_s12_auto_off_boiler_not_started`                             |   S12a   | Auto OFF → releu nemodificat (nu pornește)                                                   |
+| `test_s12_auto_off_running_boiler_not_stopped`                     |   S12b   | Auto OFF → releu nemodificat (nu oprește)                                                    |
+| `test_s12_temp_protection_still_fires_when_auto_off`               |   S12c   | Protecție supraîncălzire activă chiar și cu auto OFF                                         |
+| `test_s13_sensor_unavailable_boiler_not_started`                   |   S13a   | Senzor indisponibil → releu OFF nemodificat                                                  |
+| `test_s13_sensor_unavailable_running_boiler_not_stopped`           |   S13b   | Senzor indisponibil → releu ON nemodificat                                                   |
+| `test_s14_b2_blocked_when_surplus_consumed_by_b1`                  |   S14    | B2 blocat când surplusul rămas după B1 e insuficient                                         |
+| `test_s15_b2_starts_when_surplus_covers_both`                      |   S15    | B2 pornește când surplusul acoperă ambii boileri                                             |
+| `test_s16_b1_held_back_when_too_hot_vs_b2`                         |   S16    | B1 ținut pe loc când e cu >5°C mai cald decât B2                                             |
+| `test_s17_b2_held_back_when_too_hot_vs_b1`                         |   S17    | B2 ținut pe loc când e cu >5°C mai cald decât B1                                             |
 
 ---
 
