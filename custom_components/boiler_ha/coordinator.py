@@ -101,7 +101,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self._unsub_listeners: list = []
         self._action_log: deque[str] = deque(maxlen=6)
-        self._cycle_log: deque[str] = deque(maxlen=4)
+        self._cycle_log: deque[str] = deque(maxlen=6)
         self._cycle_buf: list[str] = []
 
     # ------------------------------------------------------------------
@@ -539,10 +539,14 @@ class BoilerCoordinator(DataUpdateCoordinator):
         buf = getattr(self, "_cycle_buf", None)
         if buf:
             ts = datetime.now().strftime("%H:%M:%S")
-            block = f"[{ts}]\n" + "\n".join(f"  {ln}" for ln in buf)
+            content_lines = "\n".join(f"  {ln}" for ln in buf)
+            block = f"[{ts}]\n{content_lines}"
             cycle_log = getattr(self, "_cycle_log", None)
             if cycle_log is not None:
-                cycle_log.append(block)
+                # Skip if content (ignoring timestamp) is identical to the last entry
+                last_content = cycle_log[-1].split("\n", 1)[1] if cycle_log else None
+                if content_lines != last_content:
+                    cycle_log.append(block)
             self._cycle_buf = []
 
     async def _set_switch(self, entity_id: str, turn_on: bool) -> None:
