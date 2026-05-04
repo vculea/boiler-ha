@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 
 from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -100,6 +100,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         )
         self.entry = entry
         self._unsub_listeners: list = []
+        self._debounce_unsub = None
         self._action_log: deque[str] = deque(maxlen=6)
         self._cycle_log: deque[str] = deque(maxlen=6)
         self._cycle_buf: list[str] = []
@@ -128,7 +129,12 @@ class BoilerCoordinator(DataUpdateCoordinator):
 
         @callback
         def _state_changed(event) -> None:  # noqa: ANN001
-            self.hass.async_create_task(self.async_refresh())
+            if self._debounce_unsub is not None:
+                self._debounce_unsub()
+            def _do_refresh(_now) -> None:  # noqa: ANN001
+                self._debounce_unsub = None
+                self.hass.async_create_task(self.async_refresh())
+            self._debounce_unsub = async_call_later(self.hass, 3, _do_refresh)
 
         unsub = async_track_state_change_event(self.hass, watch, _state_changed)
         self._unsub_listeners.append(unsub)
@@ -136,6 +142,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
     @callback
     def async_cancel_subscriptions(self) -> None:
         """Cancel all state-change subscriptions."""
+        if self._debounce_unsub is not None:
+            self._debounce_unsub()
+            self._debounce_unsub = None
         for unsub in self._unsub_listeners:
             unsub()
         self._unsub_listeners.clear()
