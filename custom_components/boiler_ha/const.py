@@ -35,6 +35,7 @@ RUNTIME_VOLTAGE_BOOST_SINCE_2 = "voltage_boost_since_2"
 RUNTIME_HIGH_VOLTAGE = "high_voltage_active"  # persistent hysteresis state for overvoltage detection
 RUNTIME_HIGH_VOLTAGE_SINCE = "high_voltage_since"  # datetime when overvoltage threshold was first exceeded
 RUNTIME_PRIORITY_VOLTAGE = "priority_voltage_threshold"  # user-adjustable overvoltage trigger threshold (V)
+RUNTIME_VOLTAGE_STAGGER_SINCE = "voltage_stagger_since"  # datetime when overvoltage stagger sequence started
 
 # Solar-only schedule runtime keys (single shared schedule for both boilers)
 RUNTIME_SCHEDULE_TARGET = "schedule_target"      # float — scheduled target temperature (both boilers)
@@ -54,6 +55,7 @@ TEMP_HYSTERESIS = 5.0            # °C — boiler won't restart until temp drops
 VOLTAGE_OVERHEAT_BOOST = 5.0   # °C — effective target increase during overvoltage (capped at DEFAULT_MAX_TEMP)
 VOLTAGE_BOOST_MIN_DURATION = 300  # seconds — minimum time boost stays active even after voltage normalises
 OVERVOLTAGE_TRIGGER_DELAY = 5   # seconds — overvoltage must persist this long before protection activates
+OVERVOLTAGE_STAGGER_DELAY = 5   # seconds — delay between starting the first and second boiler during overvoltage
 
 # Platforms
 PLATFORMS = ["switch", "number", "sensor", "datetime"]

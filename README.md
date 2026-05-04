@@ -105,29 +105,30 @@ Senzorul de rețea poate raporta cu semn pozitiv fie importul, fie exportul — 
 
 ### Tabel exhaustiv de decizii
 
-| #    | Scenariu                                     | Releu inițial | Temperatură              | Surplus virtual                    |    Tensiune    |  Auto   | Rezultat                           |
-| ---- | -------------------------------------------- | :-----------: | ------------------------ | ---------------------------------- | :------------: | :-----: | ---------------------------------- |
-| S1   | Încălzire solară normală                     |      OFF      | < target − 5°C           | ≥ prag                             |     Normal     |   ON    | **Pornire**                        |
-| S2a  | Surplus insuficient, releu OFF               |      OFF      | < target − 5°C           | < prag                             |     Normal     |   ON    | **Rămâne oprit**                   |
-| S2b  | Surplus dispare în timp ce rulează¹          |      ON       | < target                 | virtual < prag                     |     Normal     |   ON    | **Oprire**                         |
-| S3   | Protecție supraîncălzire                     |      ON       | ≥ target                 | orice                              |     orice      |  orice  | **Oprire imediată**                |
-| S4   | Histerezis temp — în bandă, releu OFF        |      OFF      | target−5 ≤ temp < target | ≥ prag                             |     Normal     |   ON    | **Rămâne oprit**                   |
-| S5   | Histerezis temp — sub prag, repornire        |      OFF      | < target − 5°C           | ≥ prag                             |     Normal     |   ON    | **Pornire**                        |
-| S6   | Histerezis temp — releu ON în bandă          |      ON       | target−5 ≤ temp < target | ≥ prag                             |     Normal     |   ON    | **Continuă**                       |
-| S7   | Prioritate temp scăzută (< 50% din target)   |      OFF      | < target × 50%           | < prag                             |     Normal     |   ON    | **Pornire forțată**                |
-| S8   | Supratensiune — forțare pornire              |      OFF      | < target                 | < prag                             |     > 250V     |   ON    | **Pornire forțată**                |
-| S9   | Supratensiune — boost target                 |       −       | ≥ target utilizator      | orice                              |     > 250V     |   ON    | Target +5°C, **pornire**           |
-| S10  | Supratensiune — histerezis tensiune în bandă |       −       | < target                 | 245–250V                           | Activ anterior |   ON    | **Mod prioritate menținut**        |
-| S11  | Supratensiune dispărută                      |       −       | orice                    | orice                              |     < 245V     |   ON    | Target restaurat                   |
-| S12a | Control manual — boiler OFF                  |      OFF      | < target                 | ≥ prag                             |     Normal     | **OFF** | **Releu nemodificat**              |
-| S12b | Control manual — boiler ON                   |      ON       | < target                 | < prag                             |     Normal     | **OFF** | **Releu nemodificat**              |
-| S12c | Control manual — protecție activă            |      ON       | ≥ target                 | orice                              |     orice      | **OFF** | **Oprire** (protecția ignoră auto) |
-| S13a | Senzor temp indisponibil, releu OFF          |      OFF      | N/A                      | orice                              |     orice      |   ON    | **Releu nemodificat**              |
-| S13b | Senzor temp indisponibil, releu ON           |      ON       | N/A                      | orice                              |     orice      |   ON    | **Releu nemodificat**              |
-| S14  | Boiler 2 — surplus insuficient după B1       |      OFF      | < target − 5°C           | suficient pt B1, insuficient pt B2 |     Normal     |   ON    | B1 pornit, **B2 oprit**            |
-| S15  | Boiler 2 — surplus suficient după B1         |      OFF      | < target − 5°C           | suficient pt ambii                 |     Normal     |   ON    | **Ambii pornesc**                  |
-| S16  | Balansare — B1 prea cald față de B2          |       −       | temp1 − temp2 > 5°C      | orice                              |     > 250V     |   ON    | **B1 ținut pe loc**, B2 pornit     |
-| S17  | Balansare — B2 prea cald față de B1          |       −       | temp2 − temp1 > 5°C      | orice                              |     > 250V     |   ON    | B1 pornit, **B2 ținut pe loc**     |
+| #    | Scenariu                                          | Releu inițial | Temperatură               | Surplus virtual                    |    Tensiune    |  Auto   | Rezultat                               |
+| ---- | ------------------------------------------------- | :-----------: | ------------------------- | ---------------------------------- | :------------: | :-----: | -------------------------------------- |
+| S1   | Încălzire solară normală                          |      OFF      | < target − 5°C            | ≥ prag                             |     Normal     |   ON    | **Pornire**                            |
+| S2a  | Surplus insuficient, releu OFF                    |      OFF      | < target − 5°C            | < prag                             |     Normal     |   ON    | **Rămâne oprit**                       |
+| S2b  | Surplus dispare în timp ce rulează¹               |      ON       | < target                  | virtual < prag                     |     Normal     |   ON    | **Oprire**                             |
+| S3   | Protecție supraîncălzire                          |      ON       | ≥ target                  | orice                              |     orice      |  orice  | **Oprire imediată**                    |
+| S4   | Histerezis temp — în bandă, releu OFF             |      OFF      | target−5 ≤ temp < target  | ≥ prag                             |     Normal     |   ON    | **Rămâne oprit**                       |
+| S5   | Histerezis temp — sub prag, repornire             |      OFF      | < target − 5°C            | ≥ prag                             |     Normal     |   ON    | **Pornire**                            |
+| S6   | Histerezis temp — releu ON în bandă               |      ON       | target−5 ≤ temp < target  | ≥ prag                             |     Normal     |   ON    | **Continuă**                           |
+| S7   | Prioritate temp scăzută (< 50% din target)        |      OFF      | < target × 50%            | < prag                             |     Normal     |   ON    | **Pornire forțată**                    |
+| S8a  | Supratensiune — forțare pornire (boiler mai rece) |      OFF      | < target, T_rece ≤ T_cald | < prag                             |     > 250V     |   ON    | **Boilerul mai rece pornește imediat** |
+| S8b  | Supratensiune — al doilea boiler, delay 5s        |      OFF      | < target, T_cald > T_rece | < prag                             |     > 250V     |   ON    | **Al doilea boiler pornește după 5s**  |
+| S9   | Supratensiune — boost target                      |       −       | ≥ target utilizator       | orice                              |     > 250V     |   ON    | Target +5°C, **pornire**               |
+| S10  | Supratensiune — histerezis tensiune în bandă      |       −       | < target                  | 245–250V                           | Activ anterior |   ON    | **Mod prioritate menținut**            |
+| S11  | Supratensiune dispărută                           |       −       | orice                     | orice                              |     < 245V     |   ON    | Target restaurat                       |
+| S12a | Control manual — boiler OFF                       |      OFF      | < target                  | ≥ prag                             |     Normal     | **OFF** | **Releu nemodificat**                  |
+| S12b | Control manual — boiler ON                        |      ON       | < target                  | < prag                             |     Normal     | **OFF** | **Releu nemodificat**                  |
+| S12c | Control manual — protecție activă                 |      ON       | ≥ target                  | orice                              |     orice      | **OFF** | **Oprire** (protecția ignoră auto)     |
+| S13a | Senzor temp indisponibil, releu OFF               |      OFF      | N/A                       | orice                              |     orice      |   ON    | **Releu nemodificat**                  |
+| S13b | Senzor temp indisponibil, releu ON                |      ON       | N/A                       | orice                              |     orice      |   ON    | **Releu nemodificat**                  |
+| S14  | Boiler 2 — surplus insuficient după B1            |      OFF      | < target − 5°C            | suficient pt B1, insuficient pt B2 |     Normal     |   ON    | B1 pornit, **B2 oprit**                |
+| S15  | Boiler 2 — surplus suficient după B1              |      OFF      | < target − 5°C            | suficient pt ambii                 |     Normal     |   ON    | **Ambii pornesc**                      |
+| S16  | Balansare — B1 prea cald față de B2               |       −       | temp1 − temp2 > 5°C       | orice                              |     > 250V     |   ON    | **B1 ținut pe loc**, B2 pornit         |
+| S17  | Balansare — B2 prea cald față de B1               |       −       | temp2 − temp1 > 5°C       | orice                              |     > 250V     |   ON    | B1 pornit, **B2 ținut pe loc**         |
 
 > ¹ **Virtual surplus**: când B1 e pornit, `surplus_virtual = export_retea + putere_B1`. B1 se oprește abia când exportul e suficient de negativ încât `export_retea + putere_B1 < prag_minim`, adică rețeaua importă mai mult decât produce B1.
 
@@ -240,7 +241,9 @@ tests/
 | `test_two_cycle_sequence_off_then_restart`                         | S3+S4+S5 | Ciclu complet: target → OFF → bandă → sub prag → repornire                                   |
 | `test_s7_low_temp_priority_ignores_surplus`                        |    S7    | temp < 50% din target → pornire forțată fără surplus                                         |
 | `test_s7_no_priority_when_temp_above_half_target`                  |    S7    | Fără prioritate când temp > 50% din target                                                   |
-| `test_s8_overvoltage_forces_start_with_low_surplus`                |    S8    | Supratensiune → ambii boileri pornesc fără surplus                                           |
+| `test_s8_overvoltage_forces_start_with_low_surplus`                |    S8    | Ambii boileri pornesc la supratensiune (stagger expirat)                                     |
+| `test_s8_overvoltage_stagger_cooler_boiler_starts_first`           |   S8a    | Boilerul mai rece pornește imediat la supratensiune                                          |
+| `test_s8_overvoltage_stagger_second_boiler_starts_after_delay`     |   S8b    | Al doilea boiler pornește după 5s de la activarea supratensiunii                             |
 | `test_boost_activates_when_overvoltage_and_target_reached`         |    S9    | Target +5°C la supratensiune și temp atinsă                                                  |
 | `test_boost_caps_at_default_max_temp`                              |    S9    | Target boostat nu depășește 90°C                                                             |
 | `test_no_boost_when_temp_below_target`                             |    S9    | Fără boost dacă temp nu a atins targetul                                                     |

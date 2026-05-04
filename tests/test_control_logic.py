@@ -59,6 +59,8 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     DEFAULT_PRIORITY_VOLTAGE,
     RUNTIME_HIGH_VOLTAGE_SINCE,
     OVERVOLTAGE_TRIGGER_DELAY,
+    RUNTIME_VOLTAGE_STAGGER_SINCE,
+    OVERVOLTAGE_STAGGER_DELAY,
 )
 
 MAX_TEMP = 65.0
@@ -251,7 +253,8 @@ async def test_s7_no_priority_when_temp_above_half_target():
 
 @pytest.mark.asyncio
 async def test_s8_overvoltage_forces_start_with_low_surplus():
-    """S8 — Overvoltage (>250V) forces boiler ON even when surplus is below threshold."""
+    """S8 — Overvoltage (>250V) forces both boilers ON (once stagger expires) even when
+    surplus is below threshold."""
     temp_below_target = MAX_TEMP - TEMP_HYSTERESIS - 5.0
     coord, rt = _make_coord(
         temp1=temp_below_target, temp2=temp_below_target,
@@ -259,11 +262,52 @@ async def test_s8_overvoltage_forces_start_with_low_surplus():
         voltage=HIGH_VOLTAGE,
     )
     rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
+    # Simulate stagger already expired so both boilers are allowed to start
+    rt[RUNTIME_VOLTAGE_STAGGER_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_STAGGER_DELAY + 1)
 
     await coord._apply_control_logic()
 
     assert _turned_on(coord, "switch.relay1"), "B1 must start during overvoltage regardless of surplus"
     assert _turned_on(coord, "switch.relay2"), "B2 must also start during overvoltage regardless of surplus"
+
+
+@pytest.mark.asyncio
+async def test_s8_overvoltage_stagger_cooler_boiler_starts_first():
+    """S8 stagger — When overvoltage activates, the cooler boiler starts immediately
+    and the warmer one waits for the stagger delay."""
+    temp_cold = MAX_TEMP - TEMP_HYSTERESIS - 10.0
+    temp_warm = temp_cold + 3.0   # B1 is warmer by 3°C (within balance threshold)
+    coord, rt = _make_coord(
+        temp1=temp_warm, temp2=temp_cold,
+        grid_export=LOW_SURPLUS,
+        voltage=HIGH_VOLTAGE,
+    )
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
+    # No stagger timer set — first cycle, stagger just started
+
+    await coord._apply_control_logic()
+
+    assert _turned_on(coord, "switch.relay2"), "Cooler boiler (B2) must start immediately"
+    assert not _turned_on(coord, "switch.relay1"), "Warmer boiler (B1) must wait for stagger delay"
+
+
+@pytest.mark.asyncio
+async def test_s8_overvoltage_stagger_second_boiler_starts_after_delay():
+    """S8 stagger — After the stagger delay, the warmer boiler also starts."""
+    temp_cold = MAX_TEMP - TEMP_HYSTERESIS - 10.0
+    temp_warm = temp_cold + 3.0   # within balance threshold so balance doesn't interfere
+    coord, rt = _make_coord(
+        temp1=temp_warm, temp2=temp_cold,
+        grid_export=LOW_SURPLUS,
+        voltage=HIGH_VOLTAGE,
+    )
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
+    rt[RUNTIME_VOLTAGE_STAGGER_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_STAGGER_DELAY + 1)
+
+    await coord._apply_control_logic()
+
+    assert _turned_on(coord, "switch.relay1"), "B1 (warmer) must start after stagger delay"
+    assert _turned_on(coord, "switch.relay2"), "B2 (cooler) must still be running"
 
 
 # ---------------------------------------------------------------------------

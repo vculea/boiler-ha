@@ -53,6 +53,7 @@ from .const import (
     RUNTIME_HIGH_VOLTAGE,
     RUNTIME_HIGH_VOLTAGE_SINCE,
     RUNTIME_PRIORITY_VOLTAGE,
+    RUNTIME_VOLTAGE_STAGGER_SINCE,
     DEFAULT_MAX_TEMP,
     VOLTAGE_BOOST_MIN_DURATION,
     DEFAULT_MIN_SURPLUS,
@@ -63,6 +64,7 @@ from .const import (
     TEMP_HYSTERESIS,
     VOLTAGE_OVERHEAT_BOOST,
     OVERVOLTAGE_TRIGGER_DELAY,
+    OVERVOLTAGE_STAGGER_DELAY,
     RUNTIME_SCHEDULE_TARGET,
     RUNTIME_SCHEDULE_DEADLINE,
     RUNTIME_SCHEDULE_DONE_1,
@@ -344,7 +346,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 if RUNTIME_USER_MAX_TEMP_1 not in rt and temp1 >= max_temp_1:
                     rt[RUNTIME_USER_MAX_TEMP_1] = max_temp_1
                     rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = datetime.now()
-                    # Base boost on current temp (not just user target) to handle thermal inertia
+                    # Base boost on current temp (not just user target) to handle thermal inertia:
+                    # if water already overshot the target, we must set the new target above the
+                    # current temp, otherwise the boiler could never restart.
                     max_temp_1 = min(max(temp1, max_temp_1) + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                     rt[CONF_MAX_TEMP_1] = max_temp_1
                     self._log_action(f"Supratensiune: target Boiler 1 ridicat la {max_temp_1:.1f}°C")
@@ -357,7 +361,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 if RUNTIME_USER_MAX_TEMP_2 not in rt and temp2 >= max_temp_2:
                     rt[RUNTIME_USER_MAX_TEMP_2] = max_temp_2
                     rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = datetime.now()
-                    # Base boost on current temp (not just user target) to handle thermal inertia
+                    # Base boost on current temp (not just user target) to handle thermal inertia:
+                    # if water already overshot the target, we must set the new target above the
+                    # current temp, otherwise the boiler could never restart.
                     max_temp_2 = min(max(temp2, max_temp_2) + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                     rt[CONF_MAX_TEMP_2] = max_temp_2
                     self._log_action(f"Supratensiune: target Boiler 2 ridicat la {max_temp_2:.1f}°C")
@@ -398,12 +404,36 @@ class BoilerCoordinator(DataUpdateCoordinator):
             await self._set_switch(relay_2, False)
             boiler2_on = False
 
+        # --- Overvoltage stagger: start the cooler boiler first, other after delay ---
+        # When overvoltage is active, determine which boiler is cooler — it starts immediately.
+        # The warmer boiler is only allowed to start OVERVOLTAGE_STAGGER_DELAY seconds later,
+        # giving the first boiler a chance to absorb energy and bring voltage down on its own.
+        overvoltage_b1_priority = False
+        overvoltage_b2_priority = False
+        if high_voltage:
+            if temp1 is not None and temp2 is not None:
+                b1_is_first = temp1 <= temp2
+            elif temp1 is not None:
+                b1_is_first = True
+            else:
+                b1_is_first = False  # only B2 available, or both unavailable
+            if RUNTIME_VOLTAGE_STAGGER_SINCE not in rt:
+                rt[RUNTIME_VOLTAGE_STAGGER_SINCE] = datetime.now()
+                label = "B1" if b1_is_first else "B2"
+                self._log_action(f"Supratensiune: pornire secvențiată — {label} pornește primul")
+            stagger_elapsed = (datetime.now() - rt[RUNTIME_VOLTAGE_STAGGER_SINCE]).total_seconds()
+            second_allowed = stagger_elapsed >= OVERVOLTAGE_STAGGER_DELAY
+            overvoltage_b1_priority = b1_is_first or second_allowed
+            overvoltage_b2_priority = (not b1_is_first) or second_allowed
+        else:
+            rt.pop(RUNTIME_VOLTAGE_STAGGER_SINCE, None)
+
         # --- Priority mode detection ---
         # Condition 1: boiler temp below 50% of target  → force heating regardless of surplus
         # Condition 2: grid voltage > priority threshold → force heating (overvoltage protection)
         # NOTE: Condition 1 is suppressed during solar-only schedule (no grid consumption allowed).
-        b1_priority = (not sched_active_1 and temp1 is not None and temp1 < max_temp_1 * 0.5) or high_voltage
-        b2_priority = (not sched_active_2 and temp2 is not None and temp2 < max_temp_2 * 0.5) or high_voltage
+        b1_priority = (not sched_active_1 and temp1 is not None and temp1 < max_temp_1 * 0.5) or overvoltage_b1_priority
+        b2_priority = (not sched_active_2 and temp2 is not None and temp2 < max_temp_2 * 0.5) or overvoltage_b2_priority
 
         # Balance: in priority mode, if one boiler is >TEMP_BALANCE_MAX_DIFF°C hotter, hold it back
         b1_held_back = False
@@ -421,7 +451,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # Bypass hysteresis if target was just changed or high-voltage priority is active.
         last_max_temp_1: float = rt.get(RUNTIME_LAST_MAX_TEMP_1, max_temp_1)
         target_changed_1 = max_temp_1 != last_max_temp_1
-        bypass_hyst_1 = target_changed_1 or high_voltage
+        bypass_hyst_1 = target_changed_1 or overvoltage_b1_priority
         rt[RUNTIME_LAST_MAX_TEMP_1] = max_temp_1
         if auto_1 and temp1 is not None:
             temp_ok_1 = temp1 < max_temp_1 if (boiler1_on or bypass_hyst_1) else temp1 < (max_temp_1 - TEMP_HYSTERESIS)
@@ -436,7 +466,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 "standby"
             )
             _b1_note = (
-                "supratensiune" if (b1_priority and high_voltage) else
+                "supratensiune" if (b1_priority and overvoltage_b1_priority) else
                 "prio temp<50%" if b1_priority else
                 f"histerezis (repornire sub {max_temp_1 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_1 and not boiler1_on and not bypass_hyst_1) else
                 f"blocat (T1-T2={temp1 - temp2:.0f}°C)" if (b1_held_back and temp2 is not None) else
@@ -461,7 +491,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # --- Auto control: Boiler 2 ---
         last_max_temp_2: float = rt.get(RUNTIME_LAST_MAX_TEMP_2, max_temp_2)
         target_changed_2 = max_temp_2 != last_max_temp_2
-        bypass_hyst_2 = target_changed_2 or high_voltage
+        bypass_hyst_2 = target_changed_2 or overvoltage_b2_priority
         rt[RUNTIME_LAST_MAX_TEMP_2] = max_temp_2
         if auto_2 and temp2 is not None:
             temp_ok_2 = temp2 < max_temp_2 if (boiler2_on or bypass_hyst_2) else temp2 < (max_temp_2 - TEMP_HYSTERESIS)
@@ -478,7 +508,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 "standby"
             )
             _b2_note = (
-                "supratensiune" if (b2_priority and high_voltage) else
+                "supratensiune" if (b2_priority and overvoltage_b2_priority) else
                 "prio temp<50%" if b2_priority else
                 f"histerezis (repornire sub {max_temp_2 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_2 and not boiler2_on and not bypass_hyst_2) else
                 f"blocat (T2-T1={temp2 - (temp1 or 0):.0f}°C)" if b2_held_back else
