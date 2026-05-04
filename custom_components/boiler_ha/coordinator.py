@@ -52,6 +52,7 @@ from .const import (
     RUNTIME_VOLTAGE_BOOST_SINCE_2,
     RUNTIME_HIGH_VOLTAGE,
     RUNTIME_HIGH_VOLTAGE_SINCE,
+    RUNTIME_PRIORITY_VOLTAGE,
     DEFAULT_MAX_TEMP,
     VOLTAGE_BOOST_MIN_DURATION,
     DEFAULT_MIN_SURPLUS,
@@ -253,7 +254,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
             self._clog("program: inactiv")
         elif sched_base_active:
             self._clog(
-                f"program: activ  {sched_target:.0f}°C → {sched_deadline.strftime('%H:%M')}  "
+                f"program: activ  {sched_target:.0f}°C → {dt_util.as_local(sched_deadline).strftime('%H:%M')}  "
                 f"gata={'✓' if sched_done_1 else '✗'}/{'✓' if sched_done_2 else '✗'}"
             )
         else:
@@ -288,14 +289,16 @@ class BoilerCoordinator(DataUpdateCoordinator):
         )
 
         # --- Voltage detection (with hysteresis) ---
-        # Activate priority at > DEFAULT_PRIORITY_VOLTAGE, release only when < VOLTAGE_PRIORITY_RELEASE.
+        # Activate priority at > priority_voltage_threshold, release only when < (threshold - 5V).
         # This prevents rapid on/off oscillation when boilers absorb power and lower the voltage.
         grid_voltage = self._float_state(voltage_sensor) if voltage_sensor else None
+        priority_voltage = rt.get(RUNTIME_PRIORITY_VOLTAGE, DEFAULT_PRIORITY_VOLTAGE)
+        voltage_release = priority_voltage - (DEFAULT_PRIORITY_VOLTAGE - VOLTAGE_PRIORITY_RELEASE)
         prev_high_voltage: bool = rt.get(RUNTIME_HIGH_VOLTAGE, False)
         if grid_voltage is None:
             high_voltage = False
             rt.pop(RUNTIME_HIGH_VOLTAGE_SINCE, None)
-        elif grid_voltage > DEFAULT_PRIORITY_VOLTAGE:
+        elif grid_voltage > priority_voltage:
             if prev_high_voltage:
                 high_voltage = True  # deja activ, menține
             else:
@@ -309,7 +312,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
                     self._log_action(f"Supratensiune activată după {elapsed:.0f}s ({grid_voltage:.1f}V)")
                 else:
                     high_voltage = False  # așteptăm să expire delay-ul
-        elif grid_voltage < VOLTAGE_PRIORITY_RELEASE:
+        elif grid_voltage < voltage_release:
             high_voltage = False
             rt.pop(RUNTIME_HIGH_VOLTAGE_SINCE, None)
         else:
@@ -326,7 +329,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         elif RUNTIME_HIGH_VOLTAGE_SINCE in rt:
             _v_elapsed = (datetime.now() - rt[RUNTIME_HIGH_VOLTAGE_SINCE]).total_seconds()
             self._clog(f"tensiune: {grid_voltage:.1f}V  trigger {_v_elapsed:.0f}s/{OVERVOLTAGE_TRIGGER_DELAY}s")
-        elif grid_voltage >= VOLTAGE_PRIORITY_RELEASE:
+        elif grid_voltage >= voltage_release:
             self._clog(f"tensiune: {grid_voltage:.1f}V  histerezis")
         else:
             self._clog(f"tensiune: {grid_voltage:.1f}V  normal")
@@ -397,7 +400,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
 
         # --- Priority mode detection ---
         # Condition 1: boiler temp below 50% of target  → force heating regardless of surplus
-        # Condition 2: grid voltage > DEFAULT_PRIORITY_VOLTAGE → force heating (overvoltage protection)
+        # Condition 2: grid voltage > priority threshold → force heating (overvoltage protection)
         # NOTE: Condition 1 is suppressed during solar-only schedule (no grid consumption allowed).
         b1_priority = (not sched_active_1 and temp1 is not None and temp1 < max_temp_1 * 0.5) or high_voltage
         b2_priority = (not sched_active_2 and temp2 is not None and temp2 < max_temp_2 * 0.5) or high_voltage

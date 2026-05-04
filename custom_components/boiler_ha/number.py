@@ -33,11 +33,13 @@ from .const import (
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
+    DEFAULT_PRIORITY_VOLTAGE,
     RUNTIME_SCHEDULE_TARGET,
     RUNTIME_SCHEDULE_DONE_1,
     RUNTIME_SCHEDULE_DONE_2,
     RUNTIME_USER_MAX_TEMP_1,
     RUNTIME_USER_MAX_TEMP_2,
+    RUNTIME_PRIORITY_VOLTAGE,
     DEFAULT_SCHEDULE_TARGET,
 )
 from .coordinator import BoilerCoordinator
@@ -57,6 +59,7 @@ async def async_setup_entry(
             BoilerMaxTempNumber(coordinator, entry, CONF_MAX_TEMP_1, b1, "1", DEFAULT_MAX_TEMP),
             BoilerMaxTempNumber(coordinator, entry, CONF_MAX_TEMP_2, b2, "2", DEFAULT_MAX_TEMP),
             BoilerSurplusThresholdNumber(coordinator, entry, DEFAULT_MIN_SURPLUS),
+            BoilerOvervoltageThresholdNumber(coordinator, entry, DEFAULT_PRIORITY_VOLTAGE),
             BoilerRatedPowerNumber(coordinator, entry, CONF_BOILER1_POWER, b1, "1", DEFAULT_BOILER_POWER),
             BoilerRatedPowerNumber(coordinator, entry, CONF_BOILER2_POWER, b2, "2", DEFAULT_BOILER_POWER),
             ScheduleTargetTempNumber(
@@ -93,7 +96,7 @@ class _BoilerNumber(CoordinatorEntity, NumberEntity, RestoreEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler v1.1.8",
+            model="Solar Boiler v1.1.9",
         )
 
     @property
@@ -181,6 +184,35 @@ class BoilerSurplusThresholdNumber(_BoilerNumber):
         default: float,
     ) -> None:
         super().__init__(coordinator, entry, CONF_MIN_SURPLUS, "min_surplus", default)
+
+
+class BoilerOvervoltageThresholdNumber(_BoilerNumber):
+    """Grid voltage threshold (V) above which priority heating is activated."""
+
+    _attr_native_min_value = 210.0
+    _attr_native_max_value = 255.0
+    _attr_native_step = 1.0
+    _attr_native_unit_of_measurement = "V"
+    _attr_icon = "mdi:transmission-tower-export"
+    _attr_name = "Prag supratensiune"
+
+    def __init__(
+        self,
+        coordinator: BoilerCoordinator,
+        entry: ConfigEntry,
+        default: float,
+    ) -> None:
+        super().__init__(coordinator, entry, RUNTIME_PRIORITY_VOLTAGE, "priority_voltage", default)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None and last.state not in ("unknown", "unavailable", None):
+            try:
+                value = float(last.state)
+                self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = value
+            except (ValueError, TypeError):
+                pass
 
 
 class BoilerRatedPowerNumber(_BoilerNumber):

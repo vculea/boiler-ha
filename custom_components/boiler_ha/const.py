@@ -34,6 +34,7 @@ RUNTIME_VOLTAGE_BOOST_SINCE_1 = "voltage_boost_since_1"  # datetime when boost w
 RUNTIME_VOLTAGE_BOOST_SINCE_2 = "voltage_boost_since_2"
 RUNTIME_HIGH_VOLTAGE = "high_voltage_active"  # persistent hysteresis state for overvoltage detection
 RUNTIME_HIGH_VOLTAGE_SINCE = "high_voltage_since"  # datetime when overvoltage threshold was first exceeded
+RUNTIME_PRIORITY_VOLTAGE = "priority_voltage_threshold"  # user-adjustable overvoltage trigger threshold (V)
 
 # Solar-only schedule runtime keys (single shared schedule for both boilers)
 RUNTIME_SCHEDULE_TARGET = "schedule_target"      # float — scheduled target temperature (both boilers)

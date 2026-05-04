@@ -77,7 +77,7 @@ class _BoilerSensor(CoordinatorEntity, SensorEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler v1.1.8",
+            model="Solar Boiler v1.1.9",
         )
 
 
