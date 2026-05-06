@@ -481,3 +481,62 @@ async def test_s17_b2_held_back_when_too_hot_vs_b1():
         f"B2 must be held back (temp2={temp2_hot} is >{TEMP_BALANCE_MAX_DIFF}°C "
         f"hotter than temp1={temp1_cold})"
     )
+
+
+# ---------------------------------------------------------------------------
+# Solar priority based on temperature (new in v1.2.3)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_solar_priority_b1_when_temps_equal():
+    """When T1 == T2, B1 gets solar priority (same as before).
+    Tight surplus: enough for one boiler only. B1 must start, B2 must stay off."""
+    temp_cold = MAX_TEMP - TEMP_HYSTERESIS - 5.0
+    # surplus is enough for one boiler but NOT two: min_surplus <= surplus < min_surplus + boiler_power
+    tight_surplus = DEFAULT_MIN_SURPLUS + DEFAULT_BOILER_POWER - 100.0
+    coord, _ = _make_coord(temp1=temp_cold, temp2=temp_cold, grid_export=tight_surplus)
+
+    await coord._apply_control_logic()
+
+    assert _turned_on(coord, "switch.relay1"), "B1 must start when T1==T2 (B1 has solar priority)"
+    assert not _turned_on(coord, "switch.relay2"), (
+        "B2 must stay off — surplus is consumed by B1 and remainder is below min_surplus"
+    )
+
+
+@pytest.mark.asyncio
+async def test_solar_priority_b2_when_b1_hotter():
+    """When T1 > T2, B2 gets solar priority.
+    Tight surplus: enough for one boiler only. B2 must start, B1 must stay off."""
+    temp_cold = MAX_TEMP - TEMP_HYSTERESIS - 5.0
+    temp_warm = temp_cold + 3.0  # B1 is 3°C warmer than B2 (within balance threshold)
+    tight_surplus = DEFAULT_MIN_SURPLUS + DEFAULT_BOILER_POWER - 100.0
+    coord, _ = _make_coord(temp1=temp_warm, temp2=temp_cold, grid_export=tight_surplus)
+
+    await coord._apply_control_logic()
+
+    assert _turned_on(coord, "switch.relay2"), (
+        f"B2 must start when T1({temp_warm}) > T2({temp_cold}) — B2 has solar priority"
+    )
+    assert not _turned_on(coord, "switch.relay1"), (
+        "B1 must stay off — surplus is consumed by B2 and remainder is below min_surplus"
+    )
+
+
+@pytest.mark.asyncio
+async def test_solar_priority_b1_when_b1_cooler():
+    """When T1 < T2, B1 gets solar priority.
+    Tight surplus: enough for one boiler only. B1 must start, B2 must stay off."""
+    temp_cold = MAX_TEMP - TEMP_HYSTERESIS - 5.0
+    temp_warm = temp_cold + 3.0  # B2 is 3°C warmer than B1 (within balance threshold)
+    tight_surplus = DEFAULT_MIN_SURPLUS + DEFAULT_BOILER_POWER - 100.0
+    coord, _ = _make_coord(temp1=temp_cold, temp2=temp_warm, grid_export=tight_surplus)
+
+    await coord._apply_control_logic()
+
+    assert _turned_on(coord, "switch.relay1"), (
+        f"B1 must start when T1({temp_cold}) < T2({temp_warm}) — B1 has solar priority"
+    )
+    assert not _turned_on(coord, "switch.relay2"), (
+        "B2 must stay off — surplus is consumed by B1 and remainder is below min_surplus"
+    )

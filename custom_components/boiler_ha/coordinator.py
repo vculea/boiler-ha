@@ -359,15 +359,13 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 if RUNTIME_USER_MAX_TEMP_1 not in rt and temp1 >= max_temp_1:
                     rt[RUNTIME_USER_MAX_TEMP_1] = max_temp_1
                     rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = datetime.now()
-                    # Base boost on current temp (not just user target) to handle thermal inertia:
-                    # if water already overshot the target, we must set the new target above the
-                    # current temp, otherwise the boiler could never restart.
-                    max_temp_1 = min(max(temp1, max_temp_1) + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+                    # Step +5°C from the previous target (not from current temp) so the boost
+                    # increases gradually until it exceeds the water temperature.
+                    max_temp_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                     rt[CONF_MAX_TEMP_1] = max_temp_1
                     self._log_action(f"Supratensiune: target Boiler 1 ridicat la {max_temp_1:.1f}°C")
                 elif RUNTIME_USER_MAX_TEMP_1 in rt and temp1 >= max_temp_1 and not boiler1_on:
-                    # Thermal inertia: temp already above boosted target and boiler is OFF
-                    # (can't restart) — raise target by another 5°C so it can start.
+                    # Boosted target still below water temp — step another +5°C.
                     max_temp_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                     rt[CONF_MAX_TEMP_1] = max_temp_1
                     self._log_action(f"Supratensiune: target Boiler 1 ajustat la {max_temp_1:.1f}°C")
@@ -375,15 +373,13 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 if RUNTIME_USER_MAX_TEMP_2 not in rt and temp2 >= max_temp_2:
                     rt[RUNTIME_USER_MAX_TEMP_2] = max_temp_2
                     rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = datetime.now()
-                    # Base boost on current temp (not just user target) to handle thermal inertia:
-                    # if water already overshot the target, we must set the new target above the
-                    # current temp, otherwise the boiler could never restart.
-                    max_temp_2 = min(max(temp2, max_temp_2) + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+                    # Step +5°C from the previous target (not from current temp) so the boost
+                    # increases gradually until it exceeds the water temperature.
+                    max_temp_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                     rt[CONF_MAX_TEMP_2] = max_temp_2
                     self._log_action(f"Supratensiune: target Boiler 2 ridicat la {max_temp_2:.1f}°C")
                 elif RUNTIME_USER_MAX_TEMP_2 in rt and temp2 >= max_temp_2 and not boiler2_on:
-                    # Thermal inertia: temp already above boosted target and boiler is OFF
-                    # (can't restart) — raise target by another 5°C so it can start.
+                    # Boosted target still below water temp — step another +5°C.
                     max_temp_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                     rt[CONF_MAX_TEMP_2] = max_temp_2
                     self._log_action(f"Supratensiune: target Boiler 2 ajustat la {max_temp_2:.1f}°C")
@@ -483,8 +479,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 surplus_for_b1 = virtual_surplus
                 should_run_1 = (surplus_for_b1 >= min_surplus) and temp_ok_1
             else:
-                # B2 has solar priority — B1 uses what remains after B2
-                surplus_for_b1 = virtual_surplus - (boiler2_power if boiler2_on else 0)
+                # B2 has solar priority — always deduct B2's full rated power from B1's budget,
+                # regardless of whether B2 is currently on. B2 has first claim on the surplus.
+                surplus_for_b1 = virtual_surplus - boiler2_power
                 should_run_1 = (surplus_for_b1 >= min_surplus) and temp_ok_1
             _b1_act = (
                 "→ PORNIT" if (not boiler1_on and should_run_1) else

@@ -372,14 +372,15 @@ async def test_high_voltage_stays_false_in_hysteresis_band_when_not_active():
 
 
 @pytest.mark.asyncio
-async def test_boost_based_on_current_temp_not_user_target():
+async def test_boost_steps_from_user_target_not_current_temp():
     """When overvoltage activates and temp has already exceeded max_temp due to thermal
-    inertia, the boosted target must be based on current temp (not user target) so the
-    boiler can actually start again.
+    inertia, the first boost step is always +5°C from the USER TARGET (not from current
+    water temperature). Subsequent cycles keep stepping +5°C until the target exceeds
+    the current water temperature and the boiler can restart.
 
-    Scenario from production: user target=70°C, temp=78.3°C due to thermal inertia.
-    Old code: boosted_target = 70 + 5 = 75°C  → temp still above → boiler never starts.
-    New code: boosted_target = 78.3 + 5 = 83.3°C → temp below boosted → boiler starts.
+    Scenario: user target=70°C, temp=78.3°C due to thermal inertia.
+    Cycle 1: boosted_target = 70 + 5 = 75°C  (still below temp — boiler still OFF)
+    Cycle 2: boosted_target = 75 + 5 = 80°C  (now above 78.3 → boiler can start)
     """
     user_target = 70.0
     actual_temp = 78.3  # temp already above target due to thermal inertia
@@ -387,23 +388,35 @@ async def test_boost_based_on_current_temp_not_user_target():
                                   max_temp=user_target, voltage=255.0)
     rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
 
+    # Cycle 1: first boost step — must be user_target + 5, not actual_temp + 5
     await coord._apply_control_logic()
 
-    expected = min(actual_temp + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
-    assert rt[CONF_MAX_TEMP_1] == pytest.approx(expected, abs=0.01), (
-        f"Boosted target must be based on actual temp ({actual_temp}°C), not user target ({user_target}°C). "
-        f"Expected {expected}°C, got {rt[CONF_MAX_TEMP_1]}°C"
+    expected_cycle1 = min(user_target + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)  # 75.0
+    assert rt[CONF_MAX_TEMP_1] == pytest.approx(expected_cycle1, abs=0.01), (
+        f"First boost must step from user target ({user_target}°C), not actual temp ({actual_temp}°C). "
+        f"Expected {expected_cycle1}°C, got {rt[CONF_MAX_TEMP_1]}°C"
     )
-    assert rt[CONF_MAX_TEMP_2] == pytest.approx(expected, abs=0.01)
+    assert rt[CONF_MAX_TEMP_2] == pytest.approx(expected_cycle1, abs=0.01)
     # Original user target must be saved for restore
     assert rt[RUNTIME_USER_MAX_TEMP_1] == user_target
     assert rt[RUNTIME_USER_MAX_TEMP_2] == user_target
 
+    # Cycle 2: temp(78.3) still >= max_temp(75.0) and boiler is OFF → step again to 80°C
+    await coord._apply_control_logic()
+
+    expected_cycle2 = min(expected_cycle1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)  # 80.0
+    assert rt[CONF_MAX_TEMP_1] == pytest.approx(expected_cycle2, abs=0.01), (
+        f"Second boost step must be {expected_cycle2}°C (still below actual temp {actual_temp}°C). "
+        f"Got {rt[CONF_MAX_TEMP_1]}°C"
+    )
+    # Now 80 > 78.3, boiler can start on the next cycle
+
 
 @pytest.mark.asyncio
 async def test_boost_re_raises_when_temp_exceeds_boosted_target():
-    """If temp overshoots the boosted target (further thermal inertia), the target must
-    be raised again so the boiler can restart."""
+    """If temp overshoots the boosted target (further thermal inertia) and the boiler is
+    OFF, the target must step up another +5°C (from the boosted target, not from temp)
+    so the boiler can eventually restart."""
     user_target = 70.0
     boosted_target = min(user_target + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)  # 75°C
     overshoot_temp = boosted_target + 2.0  # 77°C — above the boosted target
@@ -419,9 +432,10 @@ async def test_boost_re_raises_when_temp_exceeds_boosted_target():
 
     await coord._apply_control_logic()
 
-    expected = min(overshoot_temp + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+    # Step is from boosted_target (+5), NOT from overshoot_temp (+5)
+    expected = min(boosted_target + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)  # 80°C
     assert rt[CONF_MAX_TEMP_1] == pytest.approx(expected, abs=0.01), (
-        f"Target must be re-raised when temp exceeds boosted target. "
+        f"Re-raise must step +5°C from boosted target ({boosted_target}°C), not from temp ({overshoot_temp}°C). "
         f"Expected {expected}°C, got {rt[CONF_MAX_TEMP_1]}°C"
     )
 
