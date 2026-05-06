@@ -490,11 +490,11 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 "standby"
             )
             _b1_note = (
-                "supratensiune" if (b1_priority and overvoltage_b1_priority) else
-                "prio temp<50%" if b1_priority else
+                "supratensiune" if (b1_priority and overvoltage_b1_priority and not b1_held_back) else
+                "prio temp<50%" if (b1_priority and not b1_held_back) else
                 f"histerezis (repornire sub {max_temp_1 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_1 and not boiler1_on and not bypass_hyst_1) else
-                f"blocat (T1-T2={temp1 - temp2:.0f}°C)" if (b1_held_back and temp2 is not None) else
-                "blocat" if b1_held_back else
+                f"blocat (T1-T2={temp1 - temp2:.0f}°C)" if (b1_held_back and not should_run_1 and temp2 is not None) else
+                "blocat" if (b1_held_back and not should_run_1) else
                 f"surplus {surplus_for_b1:.0f}W ≥ {min_surplus:.0f}W" if should_run_1 else
                 f"surplus {surplus_for_b1:.0f}W < {min_surplus:.0f}W"
             )
@@ -537,10 +537,10 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 "standby"
             )
             _b2_note = (
-                "supratensiune" if (b2_priority and overvoltage_b2_priority) else
-                "prio temp<50%" if b2_priority else
+                "supratensiune" if (b2_priority and overvoltage_b2_priority and not b2_held_back) else
+                "prio temp<50%" if (b2_priority and not b2_held_back) else
                 f"histerezis (repornire sub {max_temp_2 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_2 and not boiler2_on and not bypass_hyst_2) else
-                f"blocat (T2-T1={temp2 - (temp1 or 0):.0f}°C)" if b2_held_back else
+                f"blocat (T2-T1={temp2 - (temp1 or 0):.0f}°C)" if (b2_held_back and not should_run_2) else
                 f"surplus {surplus_for_b2:.0f}W ≥ {min_surplus:.0f}W" if should_run_2 else
                 f"surplus {surplus_for_b2:.0f}W < {min_surplus:.0f}W"
             )
