@@ -42,7 +42,6 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     DEFAULT_PRIORITY_VOLTAGE,
     VOLTAGE_PRIORITY_RELEASE,
     VOLTAGE_OVERHEAT_BOOST,
-    VOLTAGE_BOOST_MIN_DURATION,
     OVERVOLTAGE_TRIGGER_DELAY,
 )
 
@@ -199,18 +198,13 @@ async def test_no_double_boost():
 
 @pytest.mark.asyncio
 async def test_restore_on_voltage_drop():
-    """Original target is restored when overvoltage clears AND minimum hold time has elapsed."""
+    """Original target is restored immediately when overvoltage clears (boilers OFF)."""
     coord, rt = _make_coordinator(temp1=60.0, temp2=60.0, max_temp=60.0, voltage=255.0)
     rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
 
     # First cycle: overvoltage → boost
     await coord._apply_control_logic()
     assert rt[CONF_MAX_TEMP_1] == 60.0 + VOLTAGE_OVERHEAT_BOOST
-
-    # Simulate that the boost was activated long enough ago (past the minimum duration)
-    past_time = datetime.now() - timedelta(seconds=VOLTAGE_BOOST_MIN_DURATION + 1)
-    rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = past_time
-    rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = past_time
 
     # Second cycle: voltage returns to normal (clearly below VOLTAGE_PRIORITY_RELEASE)
     coord._float_state = lambda eid: {  # type: ignore[method-assign]
@@ -227,6 +221,79 @@ async def test_restore_on_voltage_drop():
     assert rt[CONF_MAX_TEMP_2] == 60.0
     assert RUNTIME_USER_MAX_TEMP_1 not in rt, "Saved original must be cleaned up"
     assert RUNTIME_USER_MAX_TEMP_2 not in rt
+
+
+@pytest.mark.asyncio
+async def test_restore_on_voltage_drop_one_boiler_running():
+    """Target is restored at 245 V even when only B1 is ON during the voltage drop.
+    B1 must stop because temp (62 > restored target 60) triggers temperature protection."""
+    coord, rt = _make_coordinator(
+        temp1=62.0, temp2=62.0, max_temp=60.0, voltage=255.0,
+        relay1_on=True, relay2_on=False,
+    )
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
+    # Pre-load boost state (boost already activated from a prior cycle)
+    boosted = min(60.0 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)  # 65°C
+    rt[CONF_MAX_TEMP_1] = boosted
+    rt[CONF_MAX_TEMP_2] = boosted
+    rt[RUNTIME_USER_MAX_TEMP_1] = 60.0
+    rt[RUNTIME_USER_MAX_TEMP_2] = 60.0
+    rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = datetime.now() - timedelta(seconds=10)
+    rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = datetime.now() - timedelta(seconds=10)
+
+    # Voltage drops below release threshold while B1 is still ON
+    coord._float_state = lambda eid: {  # type: ignore[method-assign]
+        "sensor.temp1": 62.0,
+        "sensor.temp2": 62.0,
+        "sensor.solar": 3000.0,
+        "sensor.grid": 2000.0,
+        "sensor.voltage": VOLTAGE_PRIORITY_RELEASE - 1.0,  # 244 V
+    }.get(eid)
+
+    await coord._apply_control_logic()
+
+    assert rt[CONF_MAX_TEMP_1] == 60.0, "Target must be restored immediately at 245 V with one boiler ON"
+    assert rt[CONF_MAX_TEMP_2] == 60.0
+    assert RUNTIME_USER_MAX_TEMP_1 not in rt
+    assert RUNTIME_USER_MAX_TEMP_2 not in rt
+    # B1 temp (62) >= restored target (60) → temperature protection must have stopped it
+    coord._set_switch.assert_any_call("switch.relay1", False)
+
+
+@pytest.mark.asyncio
+async def test_restore_on_voltage_drop_both_boilers_running():
+    """Target is restored at 245 V when BOTH boilers are ON during the voltage drop.
+    Both must stop because temp (66) > restored target (65)."""
+    coord, rt = _make_coordinator(
+        temp1=66.0, temp2=66.0, max_temp=65.0, voltage=255.0,
+        relay1_on=True, relay2_on=True,
+    )
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
+    boosted = min(65.0 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)  # 70°C
+    rt[CONF_MAX_TEMP_1] = boosted
+    rt[CONF_MAX_TEMP_2] = boosted
+    rt[RUNTIME_USER_MAX_TEMP_1] = 65.0
+    rt[RUNTIME_USER_MAX_TEMP_2] = 65.0
+    rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = datetime.now() - timedelta(seconds=10)
+    rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = datetime.now() - timedelta(seconds=10)
+
+    coord._float_state = lambda eid: {  # type: ignore[method-assign]
+        "sensor.temp1": 66.0,
+        "sensor.temp2": 66.0,
+        "sensor.solar": 3000.0,
+        "sensor.grid": 2000.0,
+        "sensor.voltage": VOLTAGE_PRIORITY_RELEASE - 1.0,  # 244 V
+    }.get(eid)
+
+    await coord._apply_control_logic()
+
+    assert rt[CONF_MAX_TEMP_1] == 65.0, "Target must be restored immediately at 245 V with both boilers ON"
+    assert rt[CONF_MAX_TEMP_2] == 65.0
+    assert RUNTIME_USER_MAX_TEMP_1 not in rt
+    assert RUNTIME_USER_MAX_TEMP_2 not in rt
+    # Both temps (66) >= restored target (65) → temperature protection must stop both
+    coord._set_switch.assert_any_call("switch.relay1", False)
+    coord._set_switch.assert_any_call("switch.relay2", False)
 
 
 @pytest.mark.asyncio
@@ -248,11 +315,6 @@ async def test_restore_uses_user_updated_target_during_boost():
     user_new_target = 65.0
     rt[CONF_MAX_TEMP_1] = user_new_target
     rt[RUNTIME_USER_MAX_TEMP_1] = user_new_target  # <- fix under test
-
-    # Simulate minimum hold time elapsed
-    past_time = datetime.now() - timedelta(seconds=VOLTAGE_BOOST_MIN_DURATION + 1)
-    rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = past_time
-    rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = past_time
 
     # Cycle 2: voltage drops back to normal
     coord._float_state = lambda eid: {  # type: ignore[method-assign]

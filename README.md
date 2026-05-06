@@ -249,7 +249,9 @@ tests/
 | `test_no_boost_when_temp_below_target`                             |    S9    | Fără boost dacă temp nu a atins targetul                                                     |
 | `test_no_boost_when_voltage_normal`                                |    S9    | Fără boost la tensiune normală                                                               |
 | `test_no_double_boost`                                             |    S9    | Al doilea ciclu sub supratensiune nu boostează din nou                                       |
-| `test_restore_on_voltage_drop`                                     |   S11    | Target restaurat când tensiunea revine la normal                                             |
+| `test_restore_on_voltage_drop`                                     |   S11    | Target restaurat când tensiunea revine la normal (boilere oprite)                            |
+| `test_restore_on_voltage_drop_one_boiler_running`                  |   S11    | Target restaurat la 245V când doar B1 e pornit; B1 se oprește prin protecție temperatură     |
+| `test_restore_on_voltage_drop_both_boilers_running`                |   S11    | Target restaurat la 245V când ambii boileri sunt porniți; ambii se opresc imediat            |
 | `test_restore_uses_user_updated_target_during_boost`               |   S11    | Dacă userul schimbă targetul în timpul boost-ului, valoarea nouă e restaurată (nu cea veche) |
 | `test_high_voltage_activates_above_threshold`                      |    S8    | Flag `high_voltage` activ la > 250V                                                          |
 | `test_high_voltage_not_set_below_threshold`                        |    S8    | Flag inactiv sub 250V                                                                        |
