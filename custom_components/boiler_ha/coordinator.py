@@ -5,9 +5,13 @@ Control logic:
                     + boiler1_rated_power  (if boiler 1 is currently ON)
                     + boiler2_rated_power  (if boiler 2 is currently ON)
 
-  Boiler 1 should run  ← virtual_surplus >= min_surplus  AND  temp1 < max_temp1
-  Boiler 2 should run  ← (virtual_surplus - boiler1_rated_power) >= min_surplus
-                         AND  temp2 < max_temp2
+  Solar priority (temp-based):
+    T1 <= T2 → Boiler 1 first: B1 needs virtual_surplus >= min_surplus;
+                                B2 needs (virtual_surplus - boiler1_power) >= min_surplus
+    T1 >  T2 → Boiler 2 first: B2 needs virtual_surplus >= min_surplus;
+                                B1 needs (virtual_surplus - boiler2_power) >= min_surplus
+
+  The same temperature rule drives the overvoltage stagger (cooler boiler starts first).
 
 The "virtual surplus" calculation tells us: if we turned the boilers off,
 how much surplus power would be available? This reacts immediately when other
@@ -361,9 +365,10 @@ class BoilerCoordinator(DataUpdateCoordinator):
                     max_temp_1 = min(max(temp1, max_temp_1) + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                     rt[CONF_MAX_TEMP_1] = max_temp_1
                     self._log_action(f"Supratensiune: target Boiler 1 ridicat la {max_temp_1:.1f}°C")
-                elif RUNTIME_USER_MAX_TEMP_1 in rt and temp1 >= max_temp_1:
-                    # Thermal inertia pushed temp above boosted target — raise again
-                    max_temp_1 = min(temp1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+                elif RUNTIME_USER_MAX_TEMP_1 in rt and temp1 >= max_temp_1 and not boiler1_on:
+                    # Thermal inertia: temp already above boosted target and boiler is OFF
+                    # (can't restart) — raise target by another 5°C so it can start.
+                    max_temp_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                     rt[CONF_MAX_TEMP_1] = max_temp_1
                     self._log_action(f"Supratensiune: target Boiler 1 ajustat la {max_temp_1:.1f}°C")
             if temp2 is not None and not sched_active_2:
@@ -376,9 +381,10 @@ class BoilerCoordinator(DataUpdateCoordinator):
                     max_temp_2 = min(max(temp2, max_temp_2) + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                     rt[CONF_MAX_TEMP_2] = max_temp_2
                     self._log_action(f"Supratensiune: target Boiler 2 ridicat la {max_temp_2:.1f}°C")
-                elif RUNTIME_USER_MAX_TEMP_2 in rt and temp2 >= max_temp_2:
-                    # Thermal inertia pushed temp above boosted target — raise again
-                    max_temp_2 = min(temp2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+                elif RUNTIME_USER_MAX_TEMP_2 in rt and temp2 >= max_temp_2 and not boiler2_on:
+                    # Thermal inertia: temp already above boosted target and boiler is OFF
+                    # (can't restart) — raise target by another 5°C so it can start.
+                    max_temp_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
                     rt[CONF_MAX_TEMP_2] = max_temp_2
                     self._log_action(f"Supratensiune: target Boiler 2 ajustat la {max_temp_2:.1f}°C")
         else:
@@ -454,7 +460,13 @@ class BoilerCoordinator(DataUpdateCoordinator):
             elif diff < -TEMP_BALANCE_MAX_DIFF:
                 b2_held_back = True   # boiler2 too hot vs boiler1 — let boiler1 catch up
 
-        # --- Auto control: Boiler 1 (has priority over B2 in solar mode) ---
+        # --- Solar surplus priority based on temperature ---
+        # B1 gets first access to virtual_surplus when T1 <= T2 (B1 cooler or equal).
+        # B2 gets first access when T1 > T2 (B1 hotter). Same rule applies for overvoltage
+        # (already handled via b1_is_first = temp1 <= temp2 in the stagger logic above).
+        b1_has_solar_priority = (temp1 is None or temp2 is None or temp1 <= temp2)
+
+        # --- Auto control: Boiler 1 ---
         # Hysteresis: if boiler is ON keep running until max_temp; if OFF don't start
         # until temp drops TEMP_HYSTERESIS degrees below the target.
         # Bypass hysteresis if target was just changed or high-voltage priority is active.
@@ -466,8 +478,14 @@ class BoilerCoordinator(DataUpdateCoordinator):
             temp_ok_1 = temp1 < max_temp_1 if (boiler1_on or bypass_hyst_1) else temp1 < (max_temp_1 - TEMP_HYSTERESIS)
             if b1_priority and not b1_held_back:
                 should_run_1 = temp_ok_1   # ignore surplus
+                surplus_for_b1 = virtual_surplus
+            elif b1_has_solar_priority:
+                surplus_for_b1 = virtual_surplus
+                should_run_1 = (surplus_for_b1 >= min_surplus) and temp_ok_1
             else:
-                should_run_1 = (virtual_surplus >= min_surplus) and temp_ok_1
+                # B2 has solar priority — B1 uses what remains after B2
+                surplus_for_b1 = virtual_surplus - (boiler2_power if boiler2_on else 0)
+                should_run_1 = (surplus_for_b1 >= min_surplus) and temp_ok_1
             _b1_act = (
                 "→ PORNIT" if (not boiler1_on and should_run_1) else
                 "→ OPRIT" if (boiler1_on and not should_run_1) else
@@ -480,19 +498,19 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 f"histerezis (repornire sub {max_temp_1 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_1 and not boiler1_on and not bypass_hyst_1) else
                 f"blocat (T1-T2={temp1 - temp2:.0f}°C)" if (b1_held_back and temp2 is not None) else
                 "blocat" if b1_held_back else
-                f"surplus {virtual_surplus:.0f}W ≥ {min_surplus:.0f}W" if should_run_1 else
-                f"surplus {virtual_surplus:.0f}W < {min_surplus:.0f}W"
+                f"surplus {surplus_for_b1:.0f}W ≥ {min_surplus:.0f}W" if should_run_1 else
+                f"surplus {surplus_for_b1:.0f}W < {min_surplus:.0f}W"
             )
             self._clog(f"B1 [{_b1_act}]  {temp1:.1f}/{max_temp_1:.0f}°C  {_b1_note}")
             if should_run_1 and not boiler1_on:
                 self._log_action(
-                    f"Pornire Boiler 1 — surplus={virtual_surplus:.0f}W temp={temp1:.1f}°C priority={b1_priority}"
+                    f"Pornire Boiler 1 — surplus={surplus_for_b1:.0f}W temp={temp1:.1f}°C priority={b1_priority}"
                 )
                 await self._set_switch(relay_1, True)
                 boiler1_on = True
             elif not should_run_1 and boiler1_on:
                 self._log_action(
-                    f"Oprire Boiler 1 — surplus={virtual_surplus:.0f}W temp={temp1:.1f}°C priority={b1_priority}"
+                    f"Oprire Boiler 1 — surplus={surplus_for_b1:.0f}W temp={temp1:.1f}°C priority={b1_priority}"
                 )
                 await self._set_switch(relay_1, False)
                 boiler1_on = False
@@ -506,10 +524,15 @@ class BoilerCoordinator(DataUpdateCoordinator):
             temp_ok_2 = temp2 < max_temp_2 if (boiler2_on or bypass_hyst_2) else temp2 < (max_temp_2 - TEMP_HYSTERESIS)
             if b2_priority and not b2_held_back:
                 should_run_2 = temp_ok_2   # ignore surplus
-                surplus_after_b1 = virtual_surplus - (boiler1_power if boiler1_on else 0)
+                surplus_for_b2 = virtual_surplus
+            elif b1_has_solar_priority:
+                # B1 has solar priority — B2 uses what remains after B1
+                surplus_for_b2 = virtual_surplus - (boiler1_power if boiler1_on else 0)
+                should_run_2 = (surplus_for_b2 >= min_surplus) and temp_ok_2
             else:
-                surplus_after_b1 = virtual_surplus - (boiler1_power if boiler1_on else 0)
-                should_run_2 = (surplus_after_b1 >= min_surplus) and temp_ok_2
+                # B2 has solar priority — B2 uses full virtual_surplus
+                surplus_for_b2 = virtual_surplus
+                should_run_2 = (surplus_for_b2 >= min_surplus) and temp_ok_2
             _b2_act = (
                 "→ PORNIT" if (not boiler2_on and should_run_2) else
                 "→ OPRIT" if (boiler2_on and not should_run_2) else
@@ -521,18 +544,18 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 "prio temp<50%" if b2_priority else
                 f"histerezis (repornire sub {max_temp_2 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_2 and not boiler2_on and not bypass_hyst_2) else
                 f"blocat (T2-T1={temp2 - (temp1 or 0):.0f}°C)" if b2_held_back else
-                f"surplus {surplus_after_b1:.0f}W ≥ {min_surplus:.0f}W" if should_run_2 else
-                f"surplus {surplus_after_b1:.0f}W < {min_surplus:.0f}W"
+                f"surplus {surplus_for_b2:.0f}W ≥ {min_surplus:.0f}W" if should_run_2 else
+                f"surplus {surplus_for_b2:.0f}W < {min_surplus:.0f}W"
             )
             self._clog(f"B2 [{_b2_act}]  {temp2:.1f}/{max_temp_2:.0f}°C  {_b2_note}")
             if should_run_2 and not boiler2_on:
                 self._log_action(
-                    f"Pornire Boiler 2 — temp={temp2:.1f}°C priority={b2_priority}"
+                    f"Pornire Boiler 2 — surplus={surplus_for_b2:.0f}W temp={temp2:.1f}°C priority={b2_priority}"
                 )
                 await self._set_switch(relay_2, True)
             elif not should_run_2 and boiler2_on:
                 self._log_action(
-                    f"Oprire Boiler 2 — temp={temp2:.1f}°C priority={b2_priority}"
+                    f"Oprire Boiler 2 — surplus={surplus_for_b2:.0f}W temp={temp2:.1f}°C priority={b2_priority}"
                 )
                 await self._set_switch(relay_2, False)
 
