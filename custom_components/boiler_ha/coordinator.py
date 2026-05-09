@@ -297,7 +297,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         if boiler2_on:
             virtual_surplus += boiler2_power
 
-        panels_producing: bool = solar_raw is not None and solar_raw > 0
+        panels_producing: bool = solar_raw is not None and solar_raw > 10
         self._clog(
             f"T1={f'{temp1:.1f}' if temp1 is not None else 'N/A'}°C  "
             f"T2={f'{temp2:.1f}' if temp2 is not None else 'N/A'}°C  "
