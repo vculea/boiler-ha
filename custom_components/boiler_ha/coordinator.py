@@ -233,6 +233,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         temp1 = self._float_state(temp_sensor_1)
         temp2 = self._float_state(temp_sensor_2)
         grid_raw = self._float_state(grid_sensor)
+        solar_raw = self._float_state(cfg[CONF_SOLAR_SENSOR])
         boiler1_on = self._is_on(relay_1)
         boiler2_on = self._is_on(relay_2)
 
@@ -296,10 +297,12 @@ class BoilerCoordinator(DataUpdateCoordinator):
         if boiler2_on:
             virtual_surplus += boiler2_power
 
+        panels_producing: bool = solar_raw is not None and solar_raw > 0
         self._clog(
             f"T1={f'{temp1:.1f}' if temp1 is not None else 'N/A'}°C  "
             f"T2={f'{temp2:.1f}' if temp2 is not None else 'N/A'}°C  "
             f"rețea={grid_export:+.0f}W  surplus={virtual_surplus:.0f}W  "
+            f"solar={f'{solar_raw:.0f}' if solar_raw is not None else 'N/A'}W  "
             f"B1={'ON' if boiler1_on else 'OFF'} B2={'ON' if boiler2_on else 'OFF'}"
         )
 
@@ -339,8 +342,10 @@ class BoilerCoordinator(DataUpdateCoordinator):
 
         if grid_voltage is None:
             self._clog("tensiune: N/A")
-        elif high_voltage:
+        elif high_voltage and panels_producing:
             self._clog(f"tensiune: {grid_voltage:.1f}V  ⚠ SUPRATENSIUNE")
+        elif high_voltage:
+            self._clog(f"tensiune: {grid_voltage:.1f}V  ⚠ SUPRATENSIUNE (fără producție panouri — boilerele nu pornesc)")
         elif RUNTIME_HIGH_VOLTAGE_SINCE in rt:
             _v_elapsed = (datetime.now() - rt[RUNTIME_HIGH_VOLTAGE_SINCE]).total_seconds()
             self._clog(f"tensiune: {grid_voltage:.1f}V  trigger {_v_elapsed:.0f}s/{OVERVOLTAGE_TRIGGER_DELAY}s")
@@ -354,7 +359,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # raise max_temp by VOLTAGE_OVERHEAT_BOOST (capped at DEFAULT_MAX_TEMP) so the boiler
         # restarts and keeps running to absorb the excess energy.
         # The original target is saved in RUNTIME_USER_MAX_TEMP and restored when voltage normalises.
-        if high_voltage:
+        # Overvoltage boost is only active when panels are actually producing — if there is no solar
+        # production the high voltage likely comes from the grid and boilers should not absorb it.
+        if high_voltage and panels_producing:
             if temp1 is not None and not sched_active_1:
                 if RUNTIME_USER_MAX_TEMP_1 not in rt and temp1 >= max_temp_1:
                     rt[RUNTIME_USER_MAX_TEMP_1] = max_temp_1
@@ -416,7 +423,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # giving the first boiler a chance to absorb energy and bring voltage down on its own.
         overvoltage_b1_priority = False
         overvoltage_b2_priority = False
-        if high_voltage:
+        if high_voltage and panels_producing:
             if temp1 is not None and temp2 is not None:
                 b1_is_first = temp1 <= temp2
             elif temp1 is not None:
