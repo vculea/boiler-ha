@@ -58,7 +58,7 @@ OVERVOLTAGE_TRIGGER_DELAY = 5   # seconds — overvoltage must persist this long
 OVERVOLTAGE_STAGGER_DELAY = 5   # seconds — delay between starting the first and second boiler during overvoltage
 
 # Platforms
-PLATFORMS = ["switch", "number", "sensor", "datetime"]
+PLATFORMS = ["switch", "number", "select", "sensor", "datetime"]
 
 # Status strings (used by sensor entities)
 STATUS_HEATING = "Încălzire"

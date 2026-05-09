@@ -47,6 +47,7 @@ def _stub_ha_modules() -> None:
         "homeassistant.components": MagicMock(),
         "homeassistant.components.sensor": MagicMock(),
         "homeassistant.components.number": MagicMock(),
+        "homeassistant.components.select": MagicMock(),
         "homeassistant.components.switch": MagicMock(),
         "homeassistant.components.datetime": MagicMock(),
         "homeassistant.util": ha_util,
