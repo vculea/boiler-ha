@@ -369,6 +369,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # raise max_temp by VOLTAGE_OVERHEAT_BOOST (capped at DEFAULT_MAX_TEMP) so the boiler
         # restarts and keeps running to absorb the excess energy.
         # The original target is saved in RUNTIME_USER_MAX_TEMP and restored when voltage normalises.
+        # During strong thermal inertia (water already much hotter than user target), the boost
+        # jumps fast enough to exceed current water temperature in the same cycle.
         # Overvoltage boost is only active when panels are actually producing — if there is no solar
         # production the high voltage likely comes from the grid and boilers should not absorb it.
         if high_voltage and panels_producing:
@@ -376,28 +378,50 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 if RUNTIME_USER_MAX_TEMP_1 not in rt and temp1 >= max_temp_1:
                     rt[RUNTIME_USER_MAX_TEMP_1] = max_temp_1
                     rt[RUNTIME_VOLTAGE_BOOST_SINCE_1] = datetime.now()
-                    # Step +5°C from the previous target (not from current temp) so the boost
-                    # increases gradually until it exceeds the water temperature.
-                    max_temp_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+                    # Raise target quickly enough to get above current water temperature.
+                    max_temp_1 = min(
+                        max(
+                            max_temp_1 + VOLTAGE_OVERHEAT_BOOST,
+                            temp1 + VOLTAGE_OVERHEAT_BOOST,
+                        ),
+                        DEFAULT_MAX_TEMP,
+                    )
                     rt[CONF_MAX_TEMP_1] = max_temp_1
                     self._log_action(f"Supratensiune: target Boiler 1 ridicat la {max_temp_1:.1f}°C")
                 elif RUNTIME_USER_MAX_TEMP_1 in rt and temp1 >= max_temp_1 and not boiler1_on:
-                    # Boosted target still below water temp — step another +5°C.
-                    max_temp_1 = min(max_temp_1 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+                    # Target still below water temp — raise it above current temperature.
+                    max_temp_1 = min(
+                        max(
+                            max_temp_1 + VOLTAGE_OVERHEAT_BOOST,
+                            temp1 + VOLTAGE_OVERHEAT_BOOST,
+                        ),
+                        DEFAULT_MAX_TEMP,
+                    )
                     rt[CONF_MAX_TEMP_1] = max_temp_1
                     self._log_action(f"Supratensiune: target Boiler 1 ajustat la {max_temp_1:.1f}°C")
             if temp2 is not None and not sched_active_2:
                 if RUNTIME_USER_MAX_TEMP_2 not in rt and temp2 >= max_temp_2:
                     rt[RUNTIME_USER_MAX_TEMP_2] = max_temp_2
                     rt[RUNTIME_VOLTAGE_BOOST_SINCE_2] = datetime.now()
-                    # Step +5°C from the previous target (not from current temp) so the boost
-                    # increases gradually until it exceeds the water temperature.
-                    max_temp_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+                    # Raise target quickly enough to get above current water temperature.
+                    max_temp_2 = min(
+                        max(
+                            max_temp_2 + VOLTAGE_OVERHEAT_BOOST,
+                            temp2 + VOLTAGE_OVERHEAT_BOOST,
+                        ),
+                        DEFAULT_MAX_TEMP,
+                    )
                     rt[CONF_MAX_TEMP_2] = max_temp_2
                     self._log_action(f"Supratensiune: target Boiler 2 ridicat la {max_temp_2:.1f}°C")
                 elif RUNTIME_USER_MAX_TEMP_2 in rt and temp2 >= max_temp_2 and not boiler2_on:
-                    # Boosted target still below water temp — step another +5°C.
-                    max_temp_2 = min(max_temp_2 + VOLTAGE_OVERHEAT_BOOST, DEFAULT_MAX_TEMP)
+                    # Target still below water temp — raise it above current temperature.
+                    max_temp_2 = min(
+                        max(
+                            max_temp_2 + VOLTAGE_OVERHEAT_BOOST,
+                            temp2 + VOLTAGE_OVERHEAT_BOOST,
+                        ),
+                        DEFAULT_MAX_TEMP,
+                    )
                     rt[CONF_MAX_TEMP_2] = max_temp_2
                     self._log_action(f"Supratensiune: target Boiler 2 ajustat la {max_temp_2:.1f}°C")
         else:
