@@ -18,72 +18,77 @@ cards:
     columns: 3
     square: false
     cards:
-      - type: conditional
-        conditions:
-          - condition: numeric_state
-            entity: sensor.boiler_solar_controller_retea_consum_injectie
-            below: 0
-        card:
-          type: tile
-          entity: sensor.boiler_solar_controller_retea_consum_injectie
-          name: Retea
-          icon: mdi:transmission-tower
-          color: green
-      - type: conditional
-        conditions:
-          - condition: numeric_state
-            entity: sensor.boiler_solar_controller_retea_consum_injectie
-            above: 0
-        card:
-          type: tile
-          entity: sensor.boiler_solar_controller_retea_consum_injectie
-          name: Retea
-          icon: mdi:transmission-tower
-          color: red
-      - type: conditional
-        conditions:
-          - condition: numeric_state
-            entity: sensor.boiler_solar_controller_productie_solara
-            above: 0
-        card:
-          type: tile
-          entity: sensor.boiler_solar_controller_productie_solara
-          name: Productie
-          icon: mdi:solar-power
-          color: green
-      - type: conditional
-        conditions:
-          - condition: numeric_state
-            entity: sensor.boiler_solar_controller_productie_solara
-            below: 0
-        card:
-          type: tile
-          entity: sensor.boiler_solar_controller_productie_solara
-          name: Productie
-          icon: mdi:solar-power
-          color: red
-      - type: conditional
-        conditions:
-          - condition: numeric_state
-            entity: sensor.boiler_solar_controller_tensiune_retea
-            below: 250
-        card:
-          type: tile
-          entity: sensor.boiler_solar_controller_tensiune_retea
-          name: Tensiune
-          icon: mdi:lightning-bolt
-          color: green
-      - type: conditional
-        conditions:
-          - condition: numeric_state
-            entity: sensor.boiler_solar_controller_tensiune_retea
-            above: 250
-        card:
-          type: tile
-          entity: sensor.boiler_solar_controller_tensiune_retea
-          name: Tensiune
-          icon: mdi:lightning-bolt
-          color: red
+      - type: tile
+        entity: sensor.boiler_solar_controller_retea_consum_injectie
+        name: Retea
+        icon: mdi:transmission-tower
+        card_mod:
+          style: |
+            ha-card {
+              {% set value = states(config.entity) | float(0) %}
+              {% if value > 10 %}
+                --tile-dyn-color: red;
+              {% elif value > 1 %}
+                --tile-dyn-color: deepskyblue;
+              {% elif value < 1 %}
+                --tile-dyn-color: lightgreen;
+              {% else %}
+                --tile-dyn-color: var(--state-icon-color);
+              {% endif %}
+              --tile-color: var(--tile-dyn-color) !important;
+              --card-mod-icon-color: var(--tile-dyn-color) !important;
+            }
+            ha-tile-icon$ ha-state-icon {
+              color: var(--tile-dyn-color) !important;
+            }
+
+      - type: tile
+        entity: sensor.boiler_solar_controller_productie_solara
+        name: Productie
+        icon: mdi:solar-power
+        card_mod:
+          style: |
+            ha-card {
+              {% set value = states(config.entity) | float(0) %}
+              {% if value > 10 %}
+                --tile-dyn-color: lightgreen;
+              {% elif value > 1 %}
+                --tile-dyn-color: deepskyblue;
+              {% elif value < 1 %}
+                --tile-dyn-color: red;
+              {% else %}
+                --tile-dyn-color: var(--state-icon-color);
+              {% endif %}
+              --tile-color: var(--tile-dyn-color) !important;
+              --card-mod-icon-color: var(--tile-dyn-color) !important;
+            }
+            ha-tile-icon$ ha-state-icon {
+              color: var(--tile-dyn-color) !important;
+            }
+
+      - type: tile
+        entity: sensor.boiler_solar_controller_tensiune_retea
+        name: Tensiune
+        icon: mdi:lightning-bolt
+        card_mod:
+          style: |
+            ha-card {
+              {% set value = states(config.entity) | float(0) %}
+              {% if value > 250 %}
+                --tile-dyn-color: red;
+              {% elif value > 245 %}
+                --tile-dyn-color: deepskyblue;
+              {% elif value < 245 %}
+                --tile-dyn-color: lightgreen;
+              {% else %}
+                --tile-dyn-color: var(--state-icon-color);
+              {% endif %}
+              --tile-color: var(--tile-dyn-color) !important;
+              --card-mod-icon-color: var(--tile-dyn-color) !important;
+            }
+            ha-tile-icon$ ha-state-icon {
+              color: var(--tile-dyn-color) !important;
+            }
 
   - type: entity-filter
     entities:
@@ -117,8 +122,32 @@ cards:
             name: Status
           - entity: sensor.boiler_solar_controller_consum_boiler_1
             name: Consum
+            card_mod:
+              style: |
+                :host {
+                  {% set value = states(config.entity) | float(0) %}
+                  {% if value > 10 %}
+                    color: red;
+                  {% elif value > 1 %}
+                    color: deepskyblue;
+                  {% elif value < 1 %}
+                    color: lightgreen;
+                  {% endif %}
+                }
           - entity: sensor.boiler_solar_controller_temperatura_boiler_1
             name: Temperatura
+            card_mod:
+              style: |
+                :host {
+                  {% set value = states(config.entity) | float(0) %}
+                  {% if value < 40 %}
+                    color: deepskyblue;
+                  {% elif value <= 70 %}
+                    color: gold;
+                  {% else %}
+                    color: red;
+                  {% endif %}
+                }
 
       - type: entities
         title: Boiler 2
@@ -135,8 +164,32 @@ cards:
             name: Status
           - entity: sensor.boiler_solar_controller_consum_boiler_2
             name: Consum
+            card_mod:
+              style: |
+                :host {
+                  {% set value = states(config.entity) | float(0) %}
+                  {% if value > 10 %}
+                    color: red;
+                  {% elif value > 1 %}
+                    color: deepskyblue;
+                  {% elif value < 1 %}
+                    color: lightgreen;
+                  {% endif %}
+                }
           - entity: sensor.boiler_solar_controller_temperatura_boiler_2
             name: Temperatura
+            card_mod:
+              style: |
+                :host {
+                  {% set value = states(config.entity) | float(0) %}
+                  {% if value < 40 %}
+                    color: deepskyblue;
+                  {% elif value <= 70 %}
+                    color: gold;
+                  {% else %}
+                    color: red;
+                  {% endif %}
+                }
 
   - type: entities
     title: Setari generale solar
@@ -177,25 +230,15 @@ cards:
           red: 80
 
   - type: history-graph
-    title: Istoric temperaturi (12h)
-    hours_to_show: 12
+    title: Activitate boilere + supratensiune (6h)
+    hours_to_show: 6
     refresh_interval: 30
     entities:
-      - entity: sensor.boiler_solar_controller_temperatura_boiler_1
-        name: Boiler 1
-      - entity: sensor.boiler_solar_controller_temperatura_boiler_2
-        name: Boiler 2
-
-  - type: history-graph
-    title: Istoric puteri (12h)
-    hours_to_show: 12
-    refresh_interval: 30
-    entities:
-      - entity: sensor.boiler_solar_controller_productie_solara
-        name: Productie
-      - entity: sensor.boiler_solar_controller_retea_consum_injectie
-        name: Retea
       - entity: sensor.boiler_solar_controller_consum_boiler_1
-        name: Consum B1
+        name: Boiler 1 (consum)
       - entity: sensor.boiler_solar_controller_consum_boiler_2
-        name: Consum B2
+        name: Boiler 2 (consum)
+      - entity: sensor.boiler_solar_controller_tensiune_retea
+        name: Tensiune retea
+      - entity: number.boiler_solar_controller_prag_supratensiune
+        name: Prag supratensiune
