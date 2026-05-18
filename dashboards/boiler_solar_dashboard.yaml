@@ -1,0 +1,201 @@
+# Boiler Solar Dashboard View (native Lovelace cards only)
+# Cum il folosesti:
+# 1) Home Assistant -> Dashboard -> Edit Dashboard
+# 2) Add View / Edit in YAML
+# 3) Copiezi continutul acestui fisier
+
+title: Boiler Solar
+path: boiler-solar
+icon: mdi:water-boiler
+badges: []
+cards:
+  - type: markdown
+    content: |
+      ## Boiler Solar Controller
+      Panou clar pentru control, monitorizare si alerta rapida.
+
+  - type: grid
+    columns: 3
+    square: false
+    cards:
+      - type: conditional
+        conditions:
+          - condition: numeric_state
+            entity: sensor.boiler_solar_controller_retea_consum_injectie
+            below: 0
+        card:
+          type: tile
+          entity: sensor.boiler_solar_controller_retea_consum_injectie
+          name: Retea
+          icon: mdi:transmission-tower
+          color: green
+      - type: conditional
+        conditions:
+          - condition: numeric_state
+            entity: sensor.boiler_solar_controller_retea_consum_injectie
+            above: 0
+        card:
+          type: tile
+          entity: sensor.boiler_solar_controller_retea_consum_injectie
+          name: Retea
+          icon: mdi:transmission-tower
+          color: red
+      - type: conditional
+        conditions:
+          - condition: numeric_state
+            entity: sensor.boiler_solar_controller_productie_solara
+            above: 0
+        card:
+          type: tile
+          entity: sensor.boiler_solar_controller_productie_solara
+          name: Productie
+          icon: mdi:solar-power
+          color: green
+      - type: conditional
+        conditions:
+          - condition: numeric_state
+            entity: sensor.boiler_solar_controller_productie_solara
+            below: 0
+        card:
+          type: tile
+          entity: sensor.boiler_solar_controller_productie_solara
+          name: Productie
+          icon: mdi:solar-power
+          color: red
+      - type: conditional
+        conditions:
+          - condition: numeric_state
+            entity: sensor.boiler_solar_controller_tensiune_retea
+            below: 250
+        card:
+          type: tile
+          entity: sensor.boiler_solar_controller_tensiune_retea
+          name: Tensiune
+          icon: mdi:lightning-bolt
+          color: green
+      - type: conditional
+        conditions:
+          - condition: numeric_state
+            entity: sensor.boiler_solar_controller_tensiune_retea
+            above: 250
+        card:
+          type: tile
+          entity: sensor.boiler_solar_controller_tensiune_retea
+          name: Tensiune
+          icon: mdi:lightning-bolt
+          color: red
+
+  - type: entity-filter
+    entities:
+      - sensor.boiler_solar_controller_tensiune_retea
+    state_filter:
+      - operator: ">"
+        value: 250
+    card:
+      type: glance
+      title: Alerta supratensiune
+      show_name: true
+      show_state: true
+      show_icon: true
+
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      - type: entities
+        title: Boiler 1
+        show_header_toggle: false
+        state_color: true
+        entities:
+          - entity: switch.boiler_solar_controller_control_automat_boiler_1
+            name: Automat
+          - entity: select.boiler_solar_controller_temperatura_maxima_boiler_1
+            name: Temp. max
+          - entity: number.boiler_solar_controller_putere_nominala_boiler_1
+            name: Putere (W)
+          - entity: sensor.boiler_solar_controller_status_boiler_1
+            name: Status
+          - entity: sensor.boiler_solar_controller_consum_boiler_1
+            name: Consum
+          - entity: sensor.boiler_solar_controller_temperatura_boiler_1
+            name: Temperatura
+
+      - type: entities
+        title: Boiler 2
+        show_header_toggle: false
+        state_color: true
+        entities:
+          - entity: switch.boiler_solar_controller_control_automat_boiler_2
+            name: Automat
+          - entity: select.boiler_solar_controller_temperatura_maxima_boiler_2
+            name: Temp. max
+          - entity: number.boiler_solar_controller_putere_nominala_boiler_2
+            name: Putere (W)
+          - entity: sensor.boiler_solar_controller_status_boiler_2
+            name: Status
+          - entity: sensor.boiler_solar_controller_consum_boiler_2
+            name: Consum
+          - entity: sensor.boiler_solar_controller_temperatura_boiler_2
+            name: Temperatura
+
+  - type: entities
+    title: Setari generale solar
+    show_header_toggle: false
+    entities:
+      - entity: number.boiler_solar_controller_prag_minim_surplus_solar
+        name: Prag minim surplus
+      - entity: number.boiler_solar_controller_prag_supratensiune
+        name: Prag supratensiune
+      - entity: datetime.boiler_solar_controller_deadline_program_solar
+        name: Deadline program
+      - entity: select.boiler_solar_controller_temperatura_program_solar
+        name: Temp. program
+      - entity: sensor.boiler_solar_controller_program_solar
+        name: Program solar
+
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      - type: gauge
+        entity: sensor.boiler_solar_controller_temperatura_boiler_1
+        name: Temp Boiler 1
+        min: 20
+        max: 90
+        severity:
+          green: 20
+          yellow: 60
+          red: 80
+      - type: gauge
+        entity: sensor.boiler_solar_controller_temperatura_boiler_2
+        name: Temp Boiler 2
+        min: 20
+        max: 90
+        severity:
+          green: 20
+          yellow: 60
+          red: 80
+
+  - type: history-graph
+    title: Istoric temperaturi (12h)
+    hours_to_show: 12
+    refresh_interval: 30
+    entities:
+      - entity: sensor.boiler_solar_controller_temperatura_boiler_1
+        name: Boiler 1
+      - entity: sensor.boiler_solar_controller_temperatura_boiler_2
+        name: Boiler 2
+
+  - type: history-graph
+    title: Istoric puteri (12h)
+    hours_to_show: 12
+    refresh_interval: 30
+    entities:
+      - entity: sensor.boiler_solar_controller_productie_solara
+        name: Productie
+      - entity: sensor.boiler_solar_controller_retea_consum_injectie
+        name: Retea
+      - entity: sensor.boiler_solar_controller_consum_boiler_1
+        name: Consum B1
+      - entity: sensor.boiler_solar_controller_consum_boiler_2
+        name: Consum B2
