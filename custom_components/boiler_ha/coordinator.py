@@ -431,6 +431,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # When overvoltage is active, determine which boiler is cooler — it starts immediately.
         # The warmer boiler is only allowed to start OVERVOLTAGE_STAGGER_DELAY seconds later,
         # giving the first boiler a chance to absorb energy and bring voltage down on its own.
+        # Extra guard: second boiler is allowed only if voltage is still above the trigger
+        # threshold after the stagger delay.
         overvoltage_b1_priority = False
         overvoltage_b2_priority = False
         if high_voltage and panels_producing:
@@ -445,7 +447,11 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 label = "B1" if b1_is_first else "B2"
                 self._log_action(f"Supratensiune: pornire secvențiată — {label} pornește primul")
             stagger_elapsed = (datetime.now() - rt[RUNTIME_VOLTAGE_STAGGER_SINCE]).total_seconds()
-            second_allowed = stagger_elapsed >= OVERVOLTAGE_STAGGER_DELAY
+            second_allowed = (
+                stagger_elapsed >= OVERVOLTAGE_STAGGER_DELAY
+                and grid_voltage is not None
+                and grid_voltage > priority_voltage
+            )
             overvoltage_b1_priority = b1_is_first or second_allowed
             overvoltage_b2_priority = (not b1_is_first) or second_allowed
         else:
