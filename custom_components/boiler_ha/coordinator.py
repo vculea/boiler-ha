@@ -84,6 +84,7 @@ from .const import (
     STATUS_SCHEDULE_HEATING,
     STATUS_SCHEDULE_DONE,
     STATUS_SCHEDULE_EXPIRED,
+    STATUS_SCHEDULE_PLANNED,
     STATUS_SCHEDULE_INACTIVE,
 )
 
@@ -254,11 +255,15 @@ class BoilerCoordinator(DataUpdateCoordinator):
         sched_deadline = rt.get(RUNTIME_SCHEDULE_DEADLINE)
         sched_done_1: bool = rt.get(RUNTIME_SCHEDULE_DONE_1, False)
         sched_done_2: bool = rt.get(RUNTIME_SCHEDULE_DONE_2, False)
+        sched_future_day = False
         sched_base_active: bool = (
             sched_target is not None
             and sched_deadline is not None
+            and dt_util.as_local(sched_deadline).date() == dt_util.as_local(now_aware).date()
             and sched_deadline > now_aware
         )
+        if sched_target is not None and sched_deadline is not None and not sched_base_active:
+            sched_future_day = sched_deadline > now_aware
         sched_active_1: bool = sched_base_active and not sched_done_1 and auto_1
         sched_active_2: bool = sched_base_active and not sched_done_2 and auto_2
         if sched_active_1:
@@ -271,6 +276,11 @@ class BoilerCoordinator(DataUpdateCoordinator):
         elif sched_base_active:
             self._clog(
                 f"program: activ  {sched_target:.0f}°C → {dt_util.as_local(sched_deadline).strftime('%H:%M')}  "
+                f"gata={'✓' if sched_done_1 else '✗'}/{'✓' if sched_done_2 else '✗'}"
+            )
+        elif sched_future_day:
+            self._clog(
+                f"program: programat  {sched_target:.0f}°C la {dt_util.as_local(sched_deadline).strftime('%d/%m %H:%M')}  "
                 f"gata={'✓' if sched_done_1 else '✗'}/{'✓' if sched_done_2 else '✗'}"
             )
         else:
@@ -644,11 +654,15 @@ class BoilerCoordinator(DataUpdateCoordinator):
         sched_done_1: bool = rt.get(RUNTIME_SCHEDULE_DONE_1, False)
         sched_done_2: bool = rt.get(RUNTIME_SCHEDULE_DONE_2, False)
         now_aware = dt_util.now()
+        sched_future_day = False
         sched_base_active = (
             sched_target is not None
             and sched_deadline is not None
+            and dt_util.as_local(sched_deadline).date() == dt_util.as_local(now_aware).date()
             and sched_deadline > now_aware
         )
+        if sched_target is not None and sched_deadline is not None and not sched_base_active:
+            sched_future_day = sched_deadline > now_aware
         # Apply schedule override to max_temp so status reflects actual effective target
         eff_max_temp_1 = sched_target if (sched_base_active and not sched_done_1) else max_temp_1
         eff_max_temp_2 = sched_target if (sched_base_active and not sched_done_2) else max_temp_2
@@ -678,6 +692,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 return STATUS_SCHEDULE_DONE
             if sched_base_active:
                 return STATUS_SCHEDULE_SOLAR
+            if sched_future_day:
+                return STATUS_SCHEDULE_PLANNED
             return STATUS_SCHEDULE_EXPIRED
 
         return {

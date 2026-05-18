@@ -28,6 +28,7 @@ def _stub_ha_modules() -> None:
     ha_dt.now = lambda: datetime.now(timezone.utc)
     ha_dt.utcnow = lambda: datetime.now(timezone.utc)
     ha_dt.as_utc = lambda d: d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d
+    ha_dt.as_local = lambda d: (d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d).astimezone()
     ha_dt.parse_datetime = lambda s: datetime.fromisoformat(s) if s else None
 
     ha_util = MagicMock()

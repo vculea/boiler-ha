@@ -12,6 +12,7 @@ Scenarios tested:
   SC9  — Schedule active, overvoltage: priority override is NOT suppressed (safety)
   SC10 — Overvoltage boost does NOT corrupt schedule target temp
   SC11 — Snapshot schedule_status reflects correct state (inactive / active / expired / done)
+    SC12 — Schedule set for tomorrow stays inactive today
 """
 from __future__ import annotations
 
@@ -57,6 +58,7 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     STATUS_SCHEDULE_SOLAR,
     STATUS_SCHEDULE_DONE,
     STATUS_SCHEDULE_EXPIRED,
+    STATUS_SCHEDULE_PLANNED,
     STATUS_SCHEDULE_INACTIVE,
 )
 
@@ -402,7 +404,7 @@ async def test_sc11_snapshot_status_inactive_when_no_schedule():
 
 @pytest.mark.asyncio
 async def test_sc11_snapshot_status_active_when_schedule_running():
-    """schedule_status must be STATUS_SCHEDULE_SOLAR when deadline is in the future."""
+    """schedule_status must be STATUS_SCHEDULE_SOLAR when deadline is later today."""
     coord, rt = _make_coordinator(
         temp1=40.0, temp2=40.0,
         sched_target=SCHED_TARGET,
@@ -440,3 +442,33 @@ async def test_sc11_snapshot_status_done_when_both_boilers_finished():
     assert snap["schedule_status"] == STATUS_SCHEDULE_DONE
     assert snap["schedule_done_1"] is True
     assert snap["schedule_done_2"] is True
+
+
+# ---------------------------------------------------------------------------
+# SC12 — Schedule in a future day must not start earlier
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_sc12_schedule_tomorrow_does_not_start_today():
+    """A schedule planned for tomorrow must remain inactive today (no relay start)."""
+    tomorrow_deadline = datetime.now(UTC) + timedelta(days=1, hours=2)
+    coord, rt = _make_coordinator(
+        temp1=60.0,
+        temp2=60.0,
+        max_temp=50.0,
+        grid_export=AMPLE_SURPLUS,
+        sched_target=85.0,
+        sched_deadline=tomorrow_deadline,
+    )
+    await coord._apply_control_logic()
+
+    calls = [str(c) for c in coord._set_switch.call_args_list]
+    assert not any("relay1" in c and "True" in c for c in calls), (
+        "Boiler 1 must not start before the scheduled day"
+    )
+    assert not any("relay2" in c and "True" in c for c in calls), (
+        "Boiler 2 must not start before the scheduled day"
+    )
+
+    snap = coord._build_snapshot()
+    assert snap["schedule_status"] == STATUS_SCHEDULE_PLANNED
