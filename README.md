@@ -206,7 +206,7 @@ Testele nu necesită o instalare completă de Home Assistant. Modulele HA sunt s
 
 ```bash
 uv run --with pytest --with pytest-asyncio python -m pytest tests/ -v
-uv run --with pytest --with pytest-asyncio python -m pytest tests/ -q 2>&1 | tail -3 && git add -A && git commit -m "Release v1.3.3" && git tag v1.3.3 && git push origin main --tags
+uv run --with pytest --with pytest-asyncio python -m pytest tests/ -q 2>&1 | tail -3 && git add -A && git commit -m "Release v1.3.4" && git tag v1.3.4 && git push origin main --tags
 ```
 
 ### Rulare cu un virtualenv existent
@@ -305,4 +305,4 @@ tests/
 
 5. **HACS** va detecta automat noul release după câteva minute. Utilizatorii cu integrarea instalată vor vedea notificarea de update în HA.
 
-> **Notă**: HACS folosește tag-urile Git ca versiuni. Tag-ul trebuie să coincidă exact cu `version` din `manifest.json` (ex. ambele `1.3.3`, nu `v1.3.3` vs `1.3.3`).
+> **Notă**: HACS folosește tag-urile Git ca versiuni. Tag-ul trebuie să coincidă exact cu `version` din `manifest.json` (ex. ambele `1.3.4`, nu `v1.3.4` vs `1.3.4`).
