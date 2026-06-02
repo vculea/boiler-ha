@@ -11,7 +11,7 @@ S4  — Temp hysteresis in band, relay OFF → stays OFF          [test_temp_hys
 S5  — Temp below hysteresis threshold → restart               [test_temp_hysteresis.py]
 S6  — Relay ON inside hysteresis band → keeps running         [test_temp_hysteresis.py]
 S7  — Low-temp priority: temp < 50% of target, no surplus → forced ON
-S8  — Overvoltage priority: voltage > 250V, no surplus → forced ON
+S8  — Overvoltage priority: voltage > 250V, no surplus → forced ON (only with solar above threshold)
 S9  — Overvoltage target boost                                [test_voltage_boost.py]
 S10 — Overvoltage voltage hysteresis band                     [test_voltage_boost.py]
 S11 — Overvoltage cleared, target restored                    [test_voltage_boost.py]
@@ -82,6 +82,7 @@ def _make_coord(
     relay1_on: bool = False,
     relay2_on: bool = False,
     grid_export: float = AMPLE_SURPLUS,
+    solar_power: float = 3000.0,
     voltage: float = NORMAL_VOLTAGE,
     auto_1: bool = True,
     auto_2: bool = True,
@@ -120,7 +121,7 @@ def _make_coord(
     coord._float_state = lambda eid: {  # type: ignore[method-assign]
         "sensor.temp1": temp1,
         "sensor.temp2": temp2,
-        "sensor.solar": 3000.0,
+        "sensor.solar": solar_power,
         "sensor.grid": grid_export,
         "sensor.voltage": voltage,
     }.get(eid)
@@ -269,6 +270,30 @@ async def test_s8_overvoltage_forces_start_with_low_surplus():
 
     assert _turned_on(coord, "switch.relay1"), "B1 must start during overvoltage regardless of surplus"
     assert _turned_on(coord, "switch.relay2"), "B2 must also start during overvoltage regardless of surplus"
+
+
+@pytest.mark.asyncio
+async def test_s8_overvoltage_does_not_force_start_below_solar_threshold():
+    """S8 guard — Even with high voltage, overvoltage priority must stay inactive
+    while panel production is below the configured minimum surplus threshold."""
+    temp_below_target = MAX_TEMP - TEMP_HYSTERESIS - 5.0
+    coord, rt = _make_coord(
+        temp1=temp_below_target, temp2=temp_below_target,
+        grid_export=LOW_SURPLUS,
+        solar_power=DEFAULT_MIN_SURPLUS - 100.0,
+        voltage=HIGH_VOLTAGE,
+    )
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
+    rt[RUNTIME_VOLTAGE_STAGGER_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_STAGGER_DELAY + 1)
+
+    await coord._apply_control_logic()
+
+    assert not _turned_on(coord, "switch.relay1"), (
+        "B1 must NOT start on high voltage when solar production is below min_surplus"
+    )
+    assert not _turned_on(coord, "switch.relay2"), (
+        "B2 must NOT start on high voltage when solar production is below min_surplus"
+    )
 
 
 @pytest.mark.asyncio

@@ -307,7 +307,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
         if boiler2_on:
             virtual_surplus += boiler2_power
 
-        panels_producing: bool = solar_raw is not None and solar_raw > 10
+        # Treat panel production as "active" only after the configured start threshold.
+        # This avoids morning false starts from inverter noise/self-consumption.
+        panels_producing: bool = solar_raw is not None and solar_raw >= min_surplus
         self._clog(
             f"T1={f'{temp1:.1f}' if temp1 is not None else 'N/A'}°C  "
             f"T2={f'{temp2:.1f}' if temp2 is not None else 'N/A'}°C  "
@@ -355,7 +357,10 @@ class BoilerCoordinator(DataUpdateCoordinator):
         elif high_voltage and panels_producing:
             self._clog(f"tensiune: {grid_voltage:.1f}V  ⚠ SUPRATENSIUNE")
         elif high_voltage:
-            self._clog(f"tensiune: {grid_voltage:.1f}V  ⚠ SUPRATENSIUNE (fără producție panouri — boilerele nu pornesc)")
+            self._clog(
+                f"tensiune: {grid_voltage:.1f}V  ⚠ SUPRATENSIUNE "
+                f"(producție sub pragul {min_surplus:.0f}W — boilerele nu pornesc)"
+            )
         elif RUNTIME_HIGH_VOLTAGE_SINCE in rt:
             _v_elapsed = (datetime.now() - rt[RUNTIME_HIGH_VOLTAGE_SINCE]).total_seconds()
             self._clog(f"tensiune: {grid_voltage:.1f}V  trigger {_v_elapsed:.0f}s/{OVERVOLTAGE_TRIGGER_DELAY}s")
