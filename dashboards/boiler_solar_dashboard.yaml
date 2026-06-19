@@ -192,6 +192,21 @@ cards:
         name: Temp. program
       - entity: sensor.boiler_solar_controller_program_solar
         name: Program solar
+  - type: entities
+    title: Fereastra solara zilnica
+    show_header_toggle: false
+    entities:
+      - entity: number.boiler_solar_controller_ora_start_fereastra_solara
+        name: Start fereastra (ora)
+      - entity: number.boiler_solar_controller_ora_sfarsit_fereastra_solara
+        name: Sfarsit fereastra (ora)
+      - type: section
+        label: "Interval activ: suprimă histereza și forțează target"
+    card_mod:
+      style: |
+        ha-card {
+          border-left: 3px solid var(--state-active-color, orange);
+        }
   - type: grid
     columns: 2
     square: false

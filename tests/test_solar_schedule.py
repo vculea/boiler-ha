@@ -45,6 +45,8 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     CONF_BOILER2_POWER,
     RUNTIME_AUTO_1,
     RUNTIME_AUTO_2,
+    RUNTIME_SOLAR_WINDOW_START,
+    RUNTIME_SOLAR_WINDOW_END,
     RUNTIME_HIGH_VOLTAGE_SINCE,
     RUNTIME_SCHEDULE_TARGET,
     RUNTIME_SCHEDULE_DEADLINE,
@@ -116,6 +118,9 @@ def _make_coordinator(
         CONF_BOILER2_POWER: DEFAULT_BOILER_POWER,
         RUNTIME_AUTO_1: auto_1,
         RUNTIME_AUTO_2: auto_2,
+        # disable solar window so schedule tests are not affected
+        RUNTIME_SOLAR_WINDOW_START: 0,
+        RUNTIME_SOLAR_WINDOW_END: 0,
     }
     if sched_target is not None:
         rt[RUNTIME_SCHEDULE_TARGET] = sched_target

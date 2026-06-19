@@ -52,6 +52,8 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     CONF_BOILER2_POWER,
     RUNTIME_AUTO_1,
     RUNTIME_AUTO_2,
+    RUNTIME_SOLAR_WINDOW_START,
+    RUNTIME_SOLAR_WINDOW_END,
     TEMP_HYSTERESIS,
     TEMP_BALANCE_MAX_DIFF,
     DEFAULT_MIN_SURPLUS,
@@ -110,6 +112,9 @@ def _make_coord(
         CONF_BOILER2_POWER: DEFAULT_BOILER_POWER,
         RUNTIME_AUTO_1: auto_1,
         RUNTIME_AUTO_2: auto_2,
+        # disable solar window so control logic tests are not affected
+        RUNTIME_SOLAR_WINDOW_START: 0,
+        RUNTIME_SOLAR_WINDOW_END: 0,
     }
 
     hass = MagicMock()

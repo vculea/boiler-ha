@@ -30,6 +30,8 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     CONF_BOILER2_POWER,
     RUNTIME_AUTO_1,
     RUNTIME_AUTO_2,
+    RUNTIME_SOLAR_WINDOW_START,
+    RUNTIME_SOLAR_WINDOW_END,
     RUNTIME_USER_MAX_TEMP_1,
     RUNTIME_USER_MAX_TEMP_2,
     RUNTIME_VOLTAGE_BOOST_SINCE_1,
@@ -85,6 +87,9 @@ def _make_coordinator(
         CONF_BOILER2_POWER: DEFAULT_BOILER_POWER,
         RUNTIME_AUTO_1: True,
         RUNTIME_AUTO_2: True,
+        # disable solar window so voltage boost tests are not affected
+        RUNTIME_SOLAR_WINDOW_START: 0,
+        RUNTIME_SOLAR_WINDOW_END: 0,
     }
 
     hass = MagicMock()

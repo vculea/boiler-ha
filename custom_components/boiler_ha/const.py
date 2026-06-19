@@ -43,12 +43,22 @@ RUNTIME_SCHEDULE_DEADLINE = "schedule_deadline"  # aware UTC datetime — heatin
 RUNTIME_SCHEDULE_DONE_1 = "schedule_done_1"      # bool — True when boiler 1 reached the schedule target
 RUNTIME_SCHEDULE_DONE_2 = "schedule_done_2"      # bool — True when boiler 2 reached the schedule target
 
+# Daily solar window runtime keys
+# When active (start_h <= local_hour < end_h AND no manual schedule), hysteresis is
+# bypassed so the boiler always reaches the exact target using only solar surplus.
+# The window's start time prevents morning heating, reserving thermal capacity for
+# the midday peak when overvoltage is most likely.
+RUNTIME_SOLAR_WINDOW_START = "solar_window_start"  # int 0–23 — hour when window opens
+RUNTIME_SOLAR_WINDOW_END   = "solar_window_end"    # int 0–23 — hour when window closes
+
 # Default values
 DEFAULT_MAX_TEMP = 90.0          # °C
 DEFAULT_MIN_SURPLUS = 800.0      # W — minimum surplus before starting any boiler
 DEFAULT_BOILER_POWER = 1500.0    # W — estimated rated power of one resistance
 DEFAULT_SCHEDULE_TARGET = 60.0   # °C — default solar schedule target temperature
 DEFAULT_PRIORITY_VOLTAGE = 250.0 # V — grid voltage above which priority heating is forced
+DEFAULT_SOLAR_WINDOW_START = 11  # h — daily solar window opens at 11:00 by default
+DEFAULT_SOLAR_WINDOW_END   = 15  # h — daily solar window closes at 15:00 by default
 VOLTAGE_PRIORITY_RELEASE = 245.0 # V — voltage must drop below this to exit priority mode (hysteresis)
 TEMP_BALANCE_MAX_DIFF = 5.0      # °C — max allowed temperature difference between boilers in priority mode
 TEMP_HYSTERESIS = 5.0            # °C — boiler won't restart until temp drops this far below target

@@ -73,6 +73,10 @@ from .const import (
     RUNTIME_SCHEDULE_DEADLINE,
     RUNTIME_SCHEDULE_DONE_1,
     RUNTIME_SCHEDULE_DONE_2,
+    RUNTIME_SOLAR_WINDOW_START,
+    RUNTIME_SOLAR_WINDOW_END,
+    DEFAULT_SOLAR_WINDOW_START,
+    DEFAULT_SOLAR_WINDOW_END,
     STATUS_HEATING,
     STATUS_PRIORITY,
     STATUS_STANDBY,
@@ -318,6 +322,33 @@ class BoilerCoordinator(DataUpdateCoordinator):
             f"B1={'ON' if boiler1_on else 'OFF'} B2={'ON' if boiler2_on else 'OFF'}"
         )
 
+        # --- Daily solar window ---
+        # When active (start_h ≤ local_hour < end_h AND no manual schedule today),
+        # hysteresis is bypassed so the boiler always heats to the exact target using
+        # only solar surplus.  The START time prevents morning heating, reserving
+        # thermal capacity for the midday peak when overvoltage is most likely.
+        window_start_h: int = int(rt.get(RUNTIME_SOLAR_WINDOW_START, DEFAULT_SOLAR_WINDOW_START))
+        window_end_h: int   = int(rt.get(RUNTIME_SOLAR_WINDOW_END,   DEFAULT_SOLAR_WINDOW_END))
+        local_hour: int = dt_util.as_local(now_aware).hour
+        in_solar_window: bool = (
+            window_start_h < window_end_h          # sanity: valid range
+            and window_start_h <= local_hour < window_end_h
+            and not sched_base_active              # manual schedule takes precedence
+            and panels_producing                   # only when there is actual solar
+        )
+        if in_solar_window:
+            self._clog(
+                f"fereastră solară: activă  {window_start_h:02d}:00–{window_end_h:02d}:00  "
+                f"(ora {local_hour:02d}:00)  histerezu suprimat"
+            )
+        else:
+            _outside_reason = (
+                "program activ" if sched_base_active else
+                "fără producție" if not panels_producing else
+                f"în afara intervalului {window_start_h:02d}:00–{window_end_h:02d}:00"
+            )
+            self._clog(f"fereastră solară: inactivă ({_outside_reason})")
+
         # --- Voltage detection (with hysteresis) ---
         # Activate priority at > priority_voltage_threshold, release only when < (threshold - 5V).
         # This prevents rapid on/off oscillation when boilers absorb power and lower the voltage.
@@ -515,7 +546,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # Bypass hysteresis if target was just changed or high-voltage priority is active.
         last_max_temp_1: float = rt.get(RUNTIME_LAST_MAX_TEMP_1, max_temp_1)
         target_changed_1 = max_temp_1 != last_max_temp_1
-        bypass_hyst_1 = target_changed_1 or overvoltage_b1_priority
+        bypass_hyst_1 = target_changed_1 or overvoltage_b1_priority or (in_solar_window and auto_1)
         rt[RUNTIME_LAST_MAX_TEMP_1] = max_temp_1
         if auto_1 and temp1 is not None:
             temp_ok_1 = temp1 < max_temp_1 if (boiler1_on or bypass_hyst_1) else temp1 < (max_temp_1 - TEMP_HYSTERESIS)
@@ -562,7 +593,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # --- Auto control: Boiler 2 ---
         last_max_temp_2: float = rt.get(RUNTIME_LAST_MAX_TEMP_2, max_temp_2)
         target_changed_2 = max_temp_2 != last_max_temp_2
-        bypass_hyst_2 = target_changed_2 or overvoltage_b2_priority
+        bypass_hyst_2 = target_changed_2 or overvoltage_b2_priority or (in_solar_window and auto_2)
         rt[RUNTIME_LAST_MAX_TEMP_2] = max_temp_2
         if auto_2 and temp2 is not None:
             temp_ok_2 = temp2 < max_temp_2 if (boiler2_on or bypass_hyst_2) else temp2 < (max_temp_2 - TEMP_HYSTERESIS)
@@ -748,6 +779,17 @@ class BoilerCoordinator(DataUpdateCoordinator):
             "schedule_deadline": sched_deadline,
             "schedule_done_1": sched_done_1,
             "schedule_done_2": sched_done_2,
+            "solar_window_start": int(rt.get(RUNTIME_SOLAR_WINDOW_START, DEFAULT_SOLAR_WINDOW_START)),
+            "solar_window_end": int(rt.get(RUNTIME_SOLAR_WINDOW_END, DEFAULT_SOLAR_WINDOW_END)),
+            "solar_window_active": (
+                int(rt.get(RUNTIME_SOLAR_WINDOW_START, DEFAULT_SOLAR_WINDOW_START))
+                < int(rt.get(RUNTIME_SOLAR_WINDOW_END, DEFAULT_SOLAR_WINDOW_END))
+                and int(rt.get(RUNTIME_SOLAR_WINDOW_START, DEFAULT_SOLAR_WINDOW_START))
+                    <= dt_util.as_local(dt_util.now()).hour
+                    < int(rt.get(RUNTIME_SOLAR_WINDOW_END, DEFAULT_SOLAR_WINDOW_END))
+                and not sched_base_active
+                and solar_producing
+            ),
             "action_log": list(self._action_log),
             "cycle_log": list(reversed(list(getattr(self, "_cycle_log", [])))),
         }

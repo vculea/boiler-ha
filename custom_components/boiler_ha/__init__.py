@@ -17,10 +17,14 @@ from .const import (
     RUNTIME_AUTO_1,
     RUNTIME_AUTO_2,
     RUNTIME_SCHEDULE_TARGET,
+    RUNTIME_SOLAR_WINDOW_START,
+    RUNTIME_SOLAR_WINDOW_END,
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
     DEFAULT_SCHEDULE_TARGET,
+    DEFAULT_SOLAR_WINDOW_START,
+    DEFAULT_SOLAR_WINDOW_END,
 )
 from .coordinator import BoilerCoordinator
 
@@ -66,6 +70,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # but doesn't write to rt until actually changed).
         RUNTIME_SCHEDULE_TARGET: DEFAULT_SCHEDULE_TARGET,
         # RUNTIME_SCHEDULE_DEADLINE intentionally absent (None = no active schedule)
+        RUNTIME_SOLAR_WINDOW_START: DEFAULT_SOLAR_WINDOW_START,
+        RUNTIME_SOLAR_WINDOW_END: DEFAULT_SOLAR_WINDOW_END,
     }
 
     coordinator = BoilerCoordinator(hass, entry)
