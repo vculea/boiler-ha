@@ -102,7 +102,7 @@ class _BoilerTempSelect(CoordinatorEntity, SelectEntity, RestoreEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler v1.4.1",
+            model="Solar Boiler v1.4.2",
         )
 
     @property
@@ -238,7 +238,7 @@ class _SolarWindowHourSelect(CoordinatorEntity, SelectEntity, RestoreEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler v1.4.1",
+            model="Solar Boiler v1.4.2",
         )
 
     @property

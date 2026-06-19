@@ -542,6 +542,21 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # (already handled via b1_is_first = temp1 <= temp2 in the stagger logic above).
         b1_has_solar_priority = (temp1 is None or temp2 is None or temp1 <= temp2)
 
+        # --- Solar window done-flags ---
+        # Once a boiler reaches its target temperature during the solar window, mark it
+        # as "done" so hysteresis re-engages (prevents cycling at the target boundary).
+        # Flags are cleared whenever the window is inactive.
+        if not in_solar_window:
+            rt.pop(RUNTIME_SOLAR_WINDOW_DONE_1, None)
+            rt.pop(RUNTIME_SOLAR_WINDOW_DONE_2, None)
+        else:
+            if temp1 is not None and temp1 >= max_temp_1:
+                rt[RUNTIME_SOLAR_WINDOW_DONE_1] = True
+            if temp2 is not None and temp2 >= max_temp_2:
+                rt[RUNTIME_SOLAR_WINDOW_DONE_2] = True
+        solar_window_done_1: bool = rt.get(RUNTIME_SOLAR_WINDOW_DONE_1, False)
+        solar_window_done_2: bool = rt.get(RUNTIME_SOLAR_WINDOW_DONE_2, False)
+
         # --- Auto control: Boiler 1 ---
         # Hysteresis: if boiler is ON keep running until max_temp; if OFF don't start
         # until temp drops TEMP_HYSTERESIS degrees below the target.
