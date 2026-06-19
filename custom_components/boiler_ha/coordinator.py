@@ -75,6 +75,8 @@ from .const import (
     RUNTIME_SCHEDULE_DONE_2,
     RUNTIME_SOLAR_WINDOW_START,
     RUNTIME_SOLAR_WINDOW_END,
+    RUNTIME_SOLAR_WINDOW_DONE_1,
+    RUNTIME_SOLAR_WINDOW_DONE_2,
     DEFAULT_SOLAR_WINDOW_START,
     DEFAULT_SOLAR_WINDOW_END,
     STATUS_HEATING,
@@ -546,7 +548,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # Bypass hysteresis if target was just changed or high-voltage priority is active.
         last_max_temp_1: float = rt.get(RUNTIME_LAST_MAX_TEMP_1, max_temp_1)
         target_changed_1 = max_temp_1 != last_max_temp_1
-        bypass_hyst_1 = target_changed_1 or overvoltage_b1_priority or (in_solar_window and auto_1)
+        bypass_hyst_1 = target_changed_1 or overvoltage_b1_priority or (in_solar_window and auto_1 and not solar_window_done_1)
         rt[RUNTIME_LAST_MAX_TEMP_1] = max_temp_1
         if auto_1 and temp1 is not None:
             temp_ok_1 = temp1 < max_temp_1 if (boiler1_on or bypass_hyst_1) else temp1 < (max_temp_1 - TEMP_HYSTERESIS)
@@ -593,7 +595,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         # --- Auto control: Boiler 2 ---
         last_max_temp_2: float = rt.get(RUNTIME_LAST_MAX_TEMP_2, max_temp_2)
         target_changed_2 = max_temp_2 != last_max_temp_2
-        bypass_hyst_2 = target_changed_2 or overvoltage_b2_priority or (in_solar_window and auto_2)
+        bypass_hyst_2 = target_changed_2 or overvoltage_b2_priority or (in_solar_window and auto_2 and not solar_window_done_2)
         rt[RUNTIME_LAST_MAX_TEMP_2] = max_temp_2
         if auto_2 and temp2 is not None:
             temp_ok_2 = temp2 < max_temp_2 if (boiler2_on or bypass_hyst_2) else temp2 < (max_temp_2 - TEMP_HYSTERESIS)

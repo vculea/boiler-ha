@@ -34,10 +34,6 @@ from .const import (
     DEFAULT_BOILER_POWER,
     DEFAULT_PRIORITY_VOLTAGE,
     RUNTIME_PRIORITY_VOLTAGE,
-    RUNTIME_SOLAR_WINDOW_START,
-    RUNTIME_SOLAR_WINDOW_END,
-    DEFAULT_SOLAR_WINDOW_START,
-    DEFAULT_SOLAR_WINDOW_END,
 )
 from .coordinator import BoilerCoordinator
 
@@ -57,8 +53,6 @@ async def async_setup_entry(
             BoilerOvervoltageThresholdNumber(coordinator, entry, DEFAULT_PRIORITY_VOLTAGE),
             BoilerRatedPowerNumber(coordinator, entry, CONF_BOILER1_POWER, b1, "1", DEFAULT_BOILER_POWER),
             BoilerRatedPowerNumber(coordinator, entry, CONF_BOILER2_POWER, b2, "2", DEFAULT_BOILER_POWER),
-            SolarWindowStartNumber(coordinator, entry),
-            SolarWindowEndNumber(coordinator, entry),
         ]
     )
 
@@ -89,7 +83,7 @@ class _BoilerNumber(CoordinatorEntity, NumberEntity, RestoreEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler v1.4.0",
+            model="Solar Boiler v1.4.1",
         )
 
     @property
@@ -176,60 +170,4 @@ class BoilerRatedPowerNumber(_BoilerNumber):
     ) -> None:
         super().__init__(coordinator, entry, runtime_key, f"rated_power_{boiler_index}", default)
         self._attr_name = f"Putere nominală {boiler_name}"
-
-
-class SolarWindowStartNumber(_BoilerNumber):
-    """Hour (0–23) when the daily solar heating window opens."""
-
-    _attr_native_min_value = 0.0
-    _attr_native_max_value = 23.0
-    _attr_native_step = 1.0
-    _attr_native_unit_of_measurement = "h"
-    _attr_icon = "mdi:weather-sunny"
-    _attr_name = "Ora start fereastră solară"
-
-    def __init__(self, coordinator: BoilerCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(
-            coordinator, entry,
-            RUNTIME_SOLAR_WINDOW_START, "solar_window_start",
-            float(DEFAULT_SOLAR_WINDOW_START),
-        )
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        last = await self.async_get_last_state()
-        if last is not None and last.state not in ("unknown", "unavailable", None):
-            try:
-                self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = float(last.state)
-            except (ValueError, TypeError):
-                pass
-
-
-class SolarWindowEndNumber(_BoilerNumber):
-    """Hour (0–23) when the daily solar heating window closes."""
-
-    _attr_native_min_value = 0.0
-    _attr_native_max_value = 23.0
-    _attr_native_step = 1.0
-    _attr_native_unit_of_measurement = "h"
-    _attr_icon = "mdi:weather-sunny-off"
-    _attr_name = "Ora sfârșit fereastră solară"
-
-    def __init__(self, coordinator: BoilerCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(
-            coordinator, entry,
-            RUNTIME_SOLAR_WINDOW_END, "solar_window_end",
-            float(DEFAULT_SOLAR_WINDOW_END),
-        )
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        last = await self.async_get_last_state()
-        if last is not None and last.state not in ("unknown", "unavailable", None):
-            try:
-                self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = float(last.state)
-            except (ValueError, TypeError):
-                pass
-
-
 

@@ -50,6 +50,11 @@ RUNTIME_SCHEDULE_DONE_2 = "schedule_done_2"      # bool — True when boiler 2 r
 # the midday peak when overvoltage is most likely.
 RUNTIME_SOLAR_WINDOW_START = "solar_window_start"  # int 0–23 — hour when window opens
 RUNTIME_SOLAR_WINDOW_END   = "solar_window_end"    # int 0–23 — hour when window closes
+# Done flags: once a boiler reaches the target during a window session, hysteresis is
+# re-engaged so the boiler doesn't cycle continuously for the rest of the window.
+# Flags are cleared automatically when the window is no longer active.
+RUNTIME_SOLAR_WINDOW_DONE_1 = "solar_window_done_1"  # bool — boiler 1 reached target this session
+RUNTIME_SOLAR_WINDOW_DONE_2 = "solar_window_done_2"  # bool — boiler 2 reached target this session
 
 # Default values
 DEFAULT_MAX_TEMP = 90.0          # °C

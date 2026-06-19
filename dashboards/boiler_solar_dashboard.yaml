@@ -196,12 +196,12 @@ cards:
     title: Fereastra solara zilnica
     show_header_toggle: false
     entities:
-      - entity: number.boiler_solar_controller_ora_start_fereastra_solara
-        name: Start fereastra (ora)
-      - entity: number.boiler_solar_controller_ora_sfarsit_fereastra_solara
-        name: Sfarsit fereastra (ora)
+      - entity: select.boiler_solar_controller_start_fereastra_solara
+        name: Start fereastra
+      - entity: select.boiler_solar_controller_sfarsit_fereastra_solara
+        name: Sfarsit fereastra
       - type: section
-        label: "Interval activ: suprimă histereza și forțează target"
+        label: "Interval activ: suprim\u0103 histereza pana la atingerea targetului"
     card_mod:
       style: |
         ha-card {

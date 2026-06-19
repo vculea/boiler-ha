@@ -31,13 +31,20 @@ from .const import (
     RUNTIME_SCHEDULE_DONE_2,
     RUNTIME_USER_MAX_TEMP_1,
     RUNTIME_USER_MAX_TEMP_2,
+    RUNTIME_SOLAR_WINDOW_START,
+    RUNTIME_SOLAR_WINDOW_END,
     DEFAULT_MAX_TEMP,
     DEFAULT_SCHEDULE_TARGET,
+    DEFAULT_SOLAR_WINDOW_START,
+    DEFAULT_SOLAR_WINDOW_END,
 )
 from .coordinator import BoilerCoordinator
 
 # Dropdown options: 30, 35, 40 … 95 °C
 _TEMP_OPTIONS: list[str] = [str(t) for t in range(30, 100, 5)]
+
+# Dropdown options for hour-of-day: "00:00" … "23:00"
+_HOUR_OPTIONS: list[str] = [f"{h:02d}:00" for h in range(24)]
 
 
 def _snap_to_option(value: float) -> str:
@@ -61,6 +68,8 @@ async def async_setup_entry(
             BoilerMaxTempSelect(coordinator, entry, CONF_MAX_TEMP_1, b1, "1", DEFAULT_MAX_TEMP),
             BoilerMaxTempSelect(coordinator, entry, CONF_MAX_TEMP_2, b2, "2", DEFAULT_MAX_TEMP),
             ScheduleTargetTempSelect(coordinator, entry, DEFAULT_SCHEDULE_TARGET),
+            SolarWindowStartSelect(coordinator, entry),
+            SolarWindowEndSelect(coordinator, entry),
         ]
     )
 
@@ -93,7 +102,7 @@ class _BoilerTempSelect(CoordinatorEntity, SelectEntity, RestoreEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler v1.4.0",
+            model="Solar Boiler v1.4.1",
         )
 
     @property
@@ -198,3 +207,90 @@ class ScheduleTargetTempSelect(_BoilerTempSelect):
                 self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = value
             except (ValueError, TypeError):
                 pass
+
+
+# ── Solar window hour selects ─────────────────────────────────────────────────
+
+class _SolarWindowHourSelect(CoordinatorEntity, SelectEntity, RestoreEntity):
+    """Base class for solar window start/end hour dropdowns."""
+
+    _attr_has_entity_name = True
+    _attr_options = _HOUR_OPTIONS
+    _attr_icon = "mdi:clock-outline"
+
+    def __init__(
+        self,
+        coordinator: BoilerCoordinator,
+        entry: ConfigEntry,
+        runtime_key: str,
+        unique_suffix: str,
+        default: int,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._runtime_key = runtime_key
+        self._default = default
+        self._attr_unique_id = f"{entry.entry_id}_{unique_suffix}"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry.entry_id)},
+            name="Boiler Solar Controller",
+            manufacturer="Boiler HA",
+            model="Solar Boiler v1.4.1",
+        )
+
+    @property
+    def current_option(self) -> str:
+        hour = int(self.hass.data[DOMAIN][self._entry.entry_id].get(
+            self._runtime_key, self._default
+        ))
+        return f"{hour:02d}:00"
+
+    async def async_select_option(self, option: str) -> None:
+        """Store hour as int (parse 'HH:00' → HH)."""
+        hour = int(option.split(":")[0])
+        self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = hour
+        self.async_write_ha_state()
+        await self.coordinator.async_refresh()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None and last.state not in ("unknown", "unavailable", None):
+            try:
+                # State stored as "HH:00"; fall back to plain int for old number entity
+                state = last.state
+                hour = int(state.split(":")[0]) if ":" in state else int(float(state))
+                self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = hour
+            except (ValueError, TypeError):
+                pass
+
+
+class SolarWindowStartSelect(_SolarWindowHourSelect):
+    """Dropdown for the hour when the daily solar heating window opens."""
+
+    _attr_name = "Start fereastr\u0103 solar\u0103"
+    _attr_icon = "mdi:weather-sunny"
+
+    def __init__(self, coordinator: BoilerCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(
+            coordinator, entry,
+            RUNTIME_SOLAR_WINDOW_START, "solar_window_start",
+            DEFAULT_SOLAR_WINDOW_START,
+        )
+
+
+class SolarWindowEndSelect(_SolarWindowHourSelect):
+    """Dropdown for the hour when the daily solar heating window closes."""
+
+    _attr_name = "Sf\u00e2r\u0219it fereastr\u0103 solar\u0103"
+    _attr_icon = "mdi:weather-sunny-off"
+
+    def __init__(self, coordinator: BoilerCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(
+            coordinator, entry,
+            RUNTIME_SOLAR_WINDOW_END, "solar_window_end",
+            DEFAULT_SOLAR_WINDOW_END,
+        )
