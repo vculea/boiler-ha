@@ -186,6 +186,8 @@ cards:
         name: Prag minim surplus
       - entity: number.boiler_solar_controller_prag_supratensiune
         name: Prag supratensiune
+      - entity: number.boiler_solar_controller_prag_prioritate_temperatura
+        name: Prag prioritate temp. (%)
       - entity: datetime.boiler_solar_controller_deadline_program_solar
         name: Deadline program
       - entity: select.boiler_solar_controller_temperatura_program_solar

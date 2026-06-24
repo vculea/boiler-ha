@@ -33,7 +33,9 @@ from .const import (
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
     DEFAULT_PRIORITY_VOLTAGE,
+    DEFAULT_PRIORITY_TEMP_RATIO,
     RUNTIME_PRIORITY_VOLTAGE,
+    RUNTIME_PRIORITY_TEMP_RATIO,
 )
 from .coordinator import BoilerCoordinator
 
@@ -51,6 +53,7 @@ async def async_setup_entry(
         [
             BoilerSurplusThresholdNumber(coordinator, entry, DEFAULT_MIN_SURPLUS),
             BoilerOvervoltageThresholdNumber(coordinator, entry, DEFAULT_PRIORITY_VOLTAGE),
+            BoilerPriorityTempRatioNumber(coordinator, entry, DEFAULT_PRIORITY_TEMP_RATIO),
             BoilerRatedPowerNumber(coordinator, entry, CONF_BOILER1_POWER, b1, "1", DEFAULT_BOILER_POWER),
             BoilerRatedPowerNumber(coordinator, entry, CONF_BOILER2_POWER, b2, "2", DEFAULT_BOILER_POWER),
         ]
@@ -83,7 +86,7 @@ class _BoilerNumber(CoordinatorEntity, NumberEntity, RestoreEntity):
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Boiler Solar Controller",
             manufacturer="Boiler HA",
-            model="Solar Boiler v1.4.2",
+            model="Solar Boiler v1.5.0",
         )
 
     @property
@@ -138,6 +141,39 @@ class BoilerOvervoltageThresholdNumber(_BoilerNumber):
         default: float,
     ) -> None:
         super().__init__(coordinator, entry, RUNTIME_PRIORITY_VOLTAGE, "priority_voltage", default)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None and last.state not in ("unknown", "unavailable", None):
+            try:
+                value = float(last.state)
+                self.hass.data[DOMAIN][self._entry.entry_id][self._runtime_key] = value
+            except (ValueError, TypeError):
+                pass
+
+
+class BoilerPriorityTempRatioNumber(_BoilerNumber):
+    """Percentage of max temp below which priority heating from the grid is activated.
+
+    E.g. 50% with a 60 °C target → priority kicks in when water < 30 °C.
+    Set to 0 % to disable temperature-based priority (overvoltage priority still works).
+    """
+
+    _attr_native_min_value = 0.0
+    _attr_native_max_value = 90.0
+    _attr_native_step = 5.0
+    _attr_native_unit_of_measurement = "%"
+    _attr_icon = "mdi:thermometer-alert"
+    _attr_name = "Prag prioritate temperatură"
+
+    def __init__(
+        self,
+        coordinator: BoilerCoordinator,
+        entry: ConfigEntry,
+        default: float,
+    ) -> None:
+        super().__init__(coordinator, entry, RUNTIME_PRIORITY_TEMP_RATIO, "priority_temp_ratio", default)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

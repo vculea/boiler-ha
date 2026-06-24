@@ -58,11 +58,13 @@ from .const import (
     RUNTIME_HIGH_VOLTAGE_SINCE,
     RUNTIME_PRIORITY_VOLTAGE,
     RUNTIME_VOLTAGE_STAGGER_SINCE,
+    RUNTIME_PRIORITY_TEMP_RATIO,
     DEFAULT_MAX_TEMP,
     VOLTAGE_BOOST_MIN_DURATION,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
     DEFAULT_PRIORITY_VOLTAGE,
+    DEFAULT_PRIORITY_TEMP_RATIO,
     VOLTAGE_PRIORITY_RELEASE,
     TEMP_BALANCE_MAX_DIFF,
     TEMP_HYSTERESIS,
@@ -520,11 +522,12 @@ class BoilerCoordinator(DataUpdateCoordinator):
             rt.pop(RUNTIME_VOLTAGE_STAGGER_SINCE, None)
 
         # --- Priority mode detection ---
-        # Condition 1: boiler temp below 50% of target  → force heating regardless of surplus
+        # Condition 1: boiler temp below priority_temp_ratio% of target → force heating regardless of surplus
         # Condition 2: grid voltage > priority threshold → force heating (overvoltage protection)
         # NOTE: Condition 1 is suppressed during solar-only schedule (no grid consumption allowed).
-        b1_priority = (not sched_active_1 and temp1 is not None and temp1 < max_temp_1 * 0.5) or overvoltage_b1_priority
-        b2_priority = (not sched_active_2 and temp2 is not None and temp2 < max_temp_2 * 0.5) or overvoltage_b2_priority
+        priority_temp_ratio: float = rt.get(RUNTIME_PRIORITY_TEMP_RATIO, DEFAULT_PRIORITY_TEMP_RATIO) / 100.0
+        b1_priority = (not sched_active_1 and temp1 is not None and temp1 < max_temp_1 * priority_temp_ratio) or overvoltage_b1_priority
+        b2_priority = (not sched_active_2 and temp2 is not None and temp2 < max_temp_2 * priority_temp_ratio) or overvoltage_b2_priority
 
         # Balance: in priority mode, if one boiler is >TEMP_BALANCE_MAX_DIFF°C hotter, hold it back
         b1_held_back = False

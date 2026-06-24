@@ -36,6 +36,7 @@ RUNTIME_HIGH_VOLTAGE = "high_voltage_active"  # persistent hysteresis state for 
 RUNTIME_HIGH_VOLTAGE_SINCE = "high_voltage_since"  # datetime when overvoltage threshold was first exceeded
 RUNTIME_PRIORITY_VOLTAGE = "priority_voltage_threshold"  # user-adjustable overvoltage trigger threshold (V)
 RUNTIME_VOLTAGE_STAGGER_SINCE = "voltage_stagger_since"  # datetime when overvoltage stagger sequence started
+RUNTIME_PRIORITY_TEMP_RATIO = "priority_temp_ratio"  # % of max_temp below which priority (grid) heating activates
 
 # Solar-only schedule runtime keys (single shared schedule for both boilers)
 RUNTIME_SCHEDULE_TARGET = "schedule_target"      # float — scheduled target temperature (both boilers)
@@ -62,6 +63,7 @@ DEFAULT_MIN_SURPLUS = 800.0      # W — minimum surplus before starting any boi
 DEFAULT_BOILER_POWER = 1500.0    # W — estimated rated power of one resistance
 DEFAULT_SCHEDULE_TARGET = 60.0   # °C — default solar schedule target temperature
 DEFAULT_PRIORITY_VOLTAGE = 250.0 # V — grid voltage above which priority heating is forced
+DEFAULT_PRIORITY_TEMP_RATIO = 50.0  # % of max_temp — below this threshold priority (grid) heating is forced
 DEFAULT_SOLAR_WINDOW_START = 11  # h — daily solar window opens at 11:00 by default
 DEFAULT_SOLAR_WINDOW_END   = 15  # h — daily solar window closes at 15:00 by default
 VOLTAGE_PRIORITY_RELEASE = 245.0 # V — voltage must drop below this to exit priority mode (hysteresis)
