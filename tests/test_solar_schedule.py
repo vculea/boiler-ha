@@ -118,9 +118,9 @@ def _make_coordinator(
         CONF_BOILER2_POWER: DEFAULT_BOILER_POWER,
         RUNTIME_AUTO_1: auto_1,
         RUNTIME_AUTO_2: auto_2,
-        # disable solar window so schedule tests are not affected
+        # full-day solar window so schedule tests are not affected by the window restriction
         RUNTIME_SOLAR_WINDOW_START: 0,
-        RUNTIME_SOLAR_WINDOW_END: 0,
+        RUNTIME_SOLAR_WINDOW_END: 24,
     }
     if sched_target is not None:
         rt[RUNTIME_SCHEDULE_TARGET] = sched_target

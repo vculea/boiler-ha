@@ -570,17 +570,18 @@ class BoilerCoordinator(DataUpdateCoordinator):
         rt[RUNTIME_LAST_MAX_TEMP_1] = max_temp_1
         if auto_1 and temp1 is not None:
             temp_ok_1 = temp1 < max_temp_1 if (boiler1_on or bypass_hyst_1) else temp1 < (max_temp_1 - TEMP_HYSTERESIS)
+            heating_allowed_1 = in_solar_window or overvoltage_b1_priority or sched_active_1
             if b1_priority and not b1_held_back:
-                should_run_1 = temp_ok_1   # ignore surplus
+                should_run_1 = temp_ok_1 and heating_allowed_1
                 surplus_for_b1 = virtual_surplus
             elif b1_has_solar_priority:
                 surplus_for_b1 = virtual_surplus
-                should_run_1 = (surplus_for_b1 >= min_surplus) and temp_ok_1
+                should_run_1 = (surplus_for_b1 >= min_surplus) and temp_ok_1 and heating_allowed_1
             else:
                 # B2 has solar priority — always deduct B2's full rated power from B1's budget,
                 # regardless of whether B2 is currently on. B2 has first claim on the surplus.
                 surplus_for_b1 = virtual_surplus - boiler2_power
-                should_run_1 = (surplus_for_b1 >= min_surplus) and temp_ok_1
+                should_run_1 = (surplus_for_b1 >= min_surplus) and temp_ok_1 and heating_allowed_1
             _b1_act = (
                 "→ PORNIT" if (not boiler1_on and should_run_1) else
                 "→ OPRIT" if (boiler1_on and not should_run_1) else
@@ -589,7 +590,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
             )
             _b1_note = (
                 "supratensiune" if (b1_priority and overvoltage_b1_priority and not b1_held_back) else
-                "prio temp<50%" if (b1_priority and not b1_held_back) else
+                "prio temp<50%" if (b1_priority and not b1_held_back and heating_allowed_1) else
+                "în afara ferestrei solare" if (not heating_allowed_1 and not should_run_1) else
                 f"histerezis (repornire sub {max_temp_1 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_1 and not boiler1_on and not bypass_hyst_1) else
                 f"blocat (T1-T2={temp1 - temp2:.0f}°C)" if (b1_held_back and not should_run_1 and temp2 is not None) else
                 "blocat" if (b1_held_back and not should_run_1) else
@@ -617,17 +619,18 @@ class BoilerCoordinator(DataUpdateCoordinator):
         rt[RUNTIME_LAST_MAX_TEMP_2] = max_temp_2
         if auto_2 and temp2 is not None:
             temp_ok_2 = temp2 < max_temp_2 if (boiler2_on or bypass_hyst_2) else temp2 < (max_temp_2 - TEMP_HYSTERESIS)
+            heating_allowed_2 = in_solar_window or overvoltage_b2_priority or sched_active_2
             if b2_priority and not b2_held_back:
-                should_run_2 = temp_ok_2   # ignore surplus
+                should_run_2 = temp_ok_2 and heating_allowed_2
                 surplus_for_b2 = virtual_surplus
             elif b1_has_solar_priority:
                 # B1 has solar priority — B2 uses what remains after B1
                 surplus_for_b2 = virtual_surplus - (boiler1_power if boiler1_on else 0)
-                should_run_2 = (surplus_for_b2 >= min_surplus) and temp_ok_2
+                should_run_2 = (surplus_for_b2 >= min_surplus) and temp_ok_2 and heating_allowed_2
             else:
                 # B2 has solar priority — B2 uses full virtual_surplus
                 surplus_for_b2 = virtual_surplus
-                should_run_2 = (surplus_for_b2 >= min_surplus) and temp_ok_2
+                should_run_2 = (surplus_for_b2 >= min_surplus) and temp_ok_2 and heating_allowed_2
             _b2_act = (
                 "→ PORNIT" if (not boiler2_on and should_run_2) else
                 "→ OPRIT" if (boiler2_on and not should_run_2) else
@@ -636,7 +639,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
             )
             _b2_note = (
                 "supratensiune" if (b2_priority and overvoltage_b2_priority and not b2_held_back) else
-                "prio temp<50%" if (b2_priority and not b2_held_back) else
+                "prio temp<50%" if (b2_priority and not b2_held_back and heating_allowed_2) else
+                "în afara ferestrei solare" if (not heating_allowed_2 and not should_run_2) else
                 f"histerezis (repornire sub {max_temp_2 - TEMP_HYSTERESIS:.0f}°C)" if (not temp_ok_2 and not boiler2_on and not bypass_hyst_2) else
                 f"blocat (T2-T1={temp2 - (temp1 or 0):.0f}°C)" if (b2_held_back and not should_run_2) else
                 f"surplus {surplus_for_b2:.0f}W ≥ {min_surplus:.0f}W" if should_run_2 else

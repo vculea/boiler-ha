@@ -25,7 +25,7 @@ S17 — Balance: B2 too hot vs B1 in priority mode → B2 held back
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -63,6 +63,8 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     OVERVOLTAGE_TRIGGER_DELAY,
     RUNTIME_VOLTAGE_STAGGER_SINCE,
     OVERVOLTAGE_STAGGER_DELAY,
+    RUNTIME_SCHEDULE_TARGET,
+    RUNTIME_SCHEDULE_DEADLINE,
 )
 
 MAX_TEMP = 65.0
@@ -112,9 +114,9 @@ def _make_coord(
         CONF_BOILER2_POWER: DEFAULT_BOILER_POWER,
         RUNTIME_AUTO_1: auto_1,
         RUNTIME_AUTO_2: auto_2,
-        # disable solar window so control logic tests are not affected
+        # full-day solar window so existing control logic tests are not affected by the restriction
         RUNTIME_SOLAR_WINDOW_START: 0,
-        RUNTIME_SOLAR_WINDOW_END: 0,
+        RUNTIME_SOLAR_WINDOW_END: 24,
     }
 
     hass = MagicMock()
@@ -569,4 +571,88 @@ async def test_solar_priority_b1_when_b1_cooler():
     )
     assert not _turned_on(coord, "switch.relay2"), (
         "B2 must stay off — surplus is consumed by B1 and remainder is below min_surplus"
+    )
+
+
+# ---------------------------------------------------------------------------
+# SW1-SW4 — Solar window restriction: heat only inside window (or overvoltage/schedule)
+# ---------------------------------------------------------------------------
+
+def _make_coord_no_window(**kwargs):
+    """Helper: creates a coordinator with solar window explicitly disabled (START=END=0).
+    Used to test the outside-solar-window restriction."""
+    coord, rt = _make_coord(**kwargs)
+    rt[RUNTIME_SOLAR_WINDOW_START] = 0
+    rt[RUNTIME_SOLAR_WINDOW_END] = 0
+    return coord, rt
+
+
+@pytest.mark.asyncio
+async def test_sw1_no_heating_outside_solar_window():
+    """SW1 — Outside solar window, no overvoltage, no schedule: boiler must stay OFF
+    even when surplus is sufficient and temp is below target."""
+    temp_cold = MAX_TEMP - TEMP_HYSTERESIS - 5.0
+    coord, _ = _make_coord_no_window(temp1=temp_cold, temp2=temp_cold, grid_export=AMPLE_SURPLUS)
+
+    await coord._apply_control_logic()
+
+    assert not _turned_on(coord, "switch.relay1"), (
+        "B1 must NOT start outside solar window even with sufficient surplus"
+    )
+    assert not _turned_on(coord, "switch.relay2"), (
+        "B2 must NOT start outside solar window even with sufficient surplus"
+    )
+
+
+@pytest.mark.asyncio
+async def test_sw2_overvoltage_overrides_solar_window_restriction():
+    """SW2 — Outside solar window, but overvoltage is active: boiler must start."""
+    temp_below_target = MAX_TEMP - TEMP_HYSTERESIS - 5.0
+    coord, rt = _make_coord_no_window(
+        temp1=temp_below_target, temp2=temp_below_target,
+        grid_export=LOW_SURPLUS,
+        voltage=HIGH_VOLTAGE,
+    )
+    rt[RUNTIME_HIGH_VOLTAGE_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_TRIGGER_DELAY + 1)
+    rt[RUNTIME_VOLTAGE_STAGGER_SINCE] = datetime.now() - timedelta(seconds=OVERVOLTAGE_STAGGER_DELAY + 1)
+
+    await coord._apply_control_logic()
+
+    assert _turned_on(coord, "switch.relay1"), (
+        "B1 must start during overvoltage regardless of solar window"
+    )
+
+
+@pytest.mark.asyncio
+async def test_sw3_schedule_overrides_solar_window_restriction():
+    """SW3 — Outside solar window, but an active schedule is set: boiler must start
+    when surplus is sufficient."""
+    temp_cold = MAX_TEMP - TEMP_HYSTERESIS - 5.0
+    sched_target = MAX_TEMP + 5.0
+    coord, rt = _make_coord_no_window(temp1=temp_cold, temp2=temp_cold, grid_export=AMPLE_SURPLUS)
+    rt[RUNTIME_SCHEDULE_TARGET] = sched_target
+    rt[RUNTIME_SCHEDULE_DEADLINE] = datetime.now(timezone.utc) + timedelta(hours=2)
+
+    await coord._apply_control_logic()
+
+    assert _turned_on(coord, "switch.relay1"), (
+        "B1 must start when an active schedule overrides the solar window restriction"
+    )
+
+
+@pytest.mark.asyncio
+async def test_sw4_running_boiler_stops_when_outside_solar_window():
+    """SW4 — Boiler was already ON, but the solar window is inactive and there is no
+    overvoltage or schedule: boiler must be turned OFF."""
+    temp_cold = MAX_TEMP - TEMP_HYSTERESIS - 5.0
+    coord, _ = _make_coord_no_window(
+        temp1=temp_cold, temp2=temp_cold,
+        relay1_on=True,
+        grid_export=AMPLE_SURPLUS,
+    )
+
+    await coord._apply_control_logic()
+
+    assert _turned_off(coord, "switch.relay1"), (
+        "B1 must turn OFF when solar window is inactive (no overvoltage, no schedule)"
     )

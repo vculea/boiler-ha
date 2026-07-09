@@ -36,6 +36,8 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     RUNTIME_AUTO_2,
     RUNTIME_SOLAR_WINDOW_START,
     RUNTIME_SOLAR_WINDOW_END,
+    RUNTIME_SOLAR_WINDOW_DONE_1,
+    RUNTIME_SOLAR_WINDOW_DONE_2,
     TEMP_HYSTERESIS,
     DEFAULT_MIN_SURPLUS,
     DEFAULT_BOILER_POWER,
@@ -80,9 +82,12 @@ def _make_coord(
         CONF_BOILER2_POWER: DEFAULT_BOILER_POWER,
         RUNTIME_AUTO_1: True,
         RUNTIME_AUTO_2: True,
-        # disable solar window so hysteresis tests are not affected
+        # full-day solar window so hysteresis tests are not affected by the window restriction
         RUNTIME_SOLAR_WINDOW_START: 0,
-        RUNTIME_SOLAR_WINDOW_END: 0,
+        RUNTIME_SOLAR_WINDOW_END: 24,
+        # mark window as done so bypass-hysteresis is off — tests use TEMP_HYSTERESIS normally
+        RUNTIME_SOLAR_WINDOW_DONE_1: True,
+        RUNTIME_SOLAR_WINDOW_DONE_2: True,
     }
 
     hass = MagicMock()
