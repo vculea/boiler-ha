@@ -86,24 +86,16 @@ Analizează `git diff vPREV..vX.Y.Z` (față de tag-ul anterior) și produce un 
 
 - **Descriere scurtă** — explicație clară pentru utilizatorul final (nu dezvoltator)
 
-### 🧪 Teste
-
-- Adăugate X teste noi care acoperă [scenariile]
-
-### 📦 Fișiere modificate
-
-| Fișier | Tip modificare |
-|--------|---------------|
-| `coordinator.py` | fix logică / feature nou |
-| `manifest.json` | bump versiune |
-
 ---
+
 **Instalare**: HACS detectează automat update-ul. Alternativ, repornește Home Assistant după actualizare manuală.
 ```
 
 **Reguli pentru sumar:**
-- Limbaj accesibil — explică *efectul* în HA, nu detalii de cod
-- Emoji-uri pentru tipul de schimbare: 🐛 fix, 🆕 feature, ⚡ îmbunătățire, 🧪 teste, ⚠️ breaking change
+
+- Limbaj accesibil — explică _efectul_ în HA, nu detalii de cod
+- **Fără secțiuni de teste sau fișiere modificate** — utilizatorul final nu are nevoie de aceste detalii tehnice
+- Emoji-uri pentru tipul de schimbare: 🐛 fix, 🆕 feature, ⚡ îmbunătățire, ⚠️ breaking change
 - Dacă sunt mai multe commit-uri față de tag-ul anterior, grupează-le logic
 
 ### 8. Pasul manual final — GitHub Release
@@ -130,22 +122,8 @@ HACS va detecta automat noul release după câteva minute.
 - **Prioritatea de temperatură scăzută respectă acum fereastra solară și schedule-ul** — până acum, când temperatura unui boiler scădea sub 50% din target, boilerul pornea forțat indiferent de ora din zi sau de fereastra solară configurată. Acum pornirea forțată este permisă doar în fereastra solară activă, în perioada de schedule sau la supratensiune.
 - **Status text corectat** — când un boiler e blocat din cauza ferestrei solare, statusul afișează acum „în afara ferestrei solare" în loc să rămână ambiguu.
 
-### 🧪 Teste
-
-- Adăugate 8 teste noi în `test_control_logic.py` care acoperă interacțiunea dintre prioritatea de temperatură și fereastra solară / schedule
-- Actualizate 2 teste existente în `test_solar_schedule.py` și `test_temp_hysteresis.py` pentru noul comportament
-
-### 📦 Fișiere modificate
-
-| Fișier | Tip modificare |
-|--------|---------------|
-| `coordinator.py` | fix logică `heating_allowed` pentru B1 și B2 |
-| `tests/test_control_logic.py` | +8 teste noi |
-| `tests/test_solar_schedule.py` | actualizare teste existente |
-| `tests/test_temp_hysteresis.py` | actualizare teste existente |
-| `manifest.json` | bump versiune 1.5.0 → 1.5.1 |
-
 ---
+
 **Instalare**: HACS detectează automat update-ul. Alternativ, repornește Home Assistant după actualizare manuală.
 ```
 
