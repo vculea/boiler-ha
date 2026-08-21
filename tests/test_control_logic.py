@@ -25,7 +25,7 @@ S17 — Balance: B2 too hot vs B1 in priority mode → B2 held back
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -65,6 +65,8 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     OVERVOLTAGE_STAGGER_DELAY,
     RUNTIME_SCHEDULE_TARGET,
     RUNTIME_SCHEDULE_DEADLINE,
+    RUNTIME_VACATION_START,
+    RUNTIME_VACATION_END,
 )
 
 MAX_TEMP = 65.0
@@ -90,6 +92,8 @@ def _make_coord(
     voltage: float = NORMAL_VOLTAGE,
     auto_1: bool = True,
     auto_2: bool = True,
+    vacation_start: datetime | None = None,
+    vacation_end: datetime | None = None,
 ) -> tuple[BoilerCoordinator, dict[str, Any]]:
     entry_id = "test_cl"
     entry = MagicMock()
@@ -117,6 +121,8 @@ def _make_coord(
         # full-day solar window so existing control logic tests are not affected by the restriction
         RUNTIME_SOLAR_WINDOW_START: 0,
         RUNTIME_SOLAR_WINDOW_END: 24,
+        RUNTIME_VACATION_START: vacation_start,
+        RUNTIME_VACATION_END: vacation_end,
     }
 
     hass = MagicMock()
@@ -151,6 +157,51 @@ def _turned_off(coord: BoilerCoordinator, relay: str) -> bool:
 
 def _not_touched(coord: BoilerCoordinator, relay: str) -> bool:
     return not any(c.args[0] == relay for c in coord._set_switch.call_args_list)
+
+
+# ---------------------------------------------------------------------------
+# Vacation period
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_vacation_blocks_and_turns_off_both_boilers():
+    """Vacation blocks heating and switches off boilers that were already on."""
+    today = date.today()
+    start = datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+    end = datetime.combine(today + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+    coord, _ = _make_coord(
+        relay1_on=True,
+        relay2_on=True,
+        grid_export=AMPLE_SURPLUS,
+        vacation_start=start,
+        vacation_end=end,
+    )
+
+    await coord._apply_control_logic()
+
+    assert _turned_off(coord, "switch.relay1")
+    assert _turned_off(coord, "switch.relay2")
+    assert not _turned_on(coord, "switch.relay1")
+    assert not _turned_on(coord, "switch.relay2")
+
+
+@pytest.mark.asyncio
+async def test_vacation_end_date_resumes_heating():
+    """Heating is allowed again on the configured return date."""
+    today = date.today()
+    start = datetime.combine(today - timedelta(days=2), datetime.min.time(), tzinfo=timezone.utc)
+    end = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
+    coord, _ = _make_coord(
+        temp1=MAX_TEMP - TEMP_HYSTERESIS - 5.0,
+        temp2=MAX_TEMP - TEMP_HYSTERESIS - 5.0,
+        grid_export=AMPLE_SURPLUS,
+        vacation_start=start,
+        vacation_end=end,
+    )
+
+    await coord._apply_control_logic()
+
+    assert _turned_on(coord, "switch.relay1")
 
 
 # ---------------------------------------------------------------------------

@@ -28,6 +28,7 @@ custom_components/boiler_ha/
 ├── coordinator.py     — logica de control (DataUpdateCoordinator), polling + reactiv
 ├── number.py          — entități Number (slider/input) pentru setări ajustabile live
 ├── sensor.py          — entități Sensor: status text, temperatură, solar, rețea
+├── datetime.py        — entități pentru deadline solar și perioada de vacanță
 ├── switch.py          — entități Switch: „Control automat" per boiler
 ├── manifest.json      — metadata HACS/HA (domain, version, iot_class)
 └── translations/
@@ -103,6 +104,13 @@ Senzorul de rețea poate raporta cu semn pozitiv fie importul, fie exportul — 
 
 4. Dacă modul **auto e dezactivat** pentru un boiler, releul lui nu e atins — controlul e manual.
 
+### Perioada de vacanță
+
+Din entitățile de tip dată ale dispozitivului se setează **Început vacanță** și
+**Revenire din vacanță**. În intervalul `început <= ziua curentă < revenire`,
+ambele boilere sunt oprite și nu pot fi pornite de logica automată. În ziua
+setată la **Revenire din vacanță**, controlul normal se reactivează automat.
+
 ### Tabel exhaustiv de decizii
 
 | #    | Scenariu                                          | Releu inițial | Temperatură               | Surplus virtual                    |    Tensiune    |  Auto   | Rezultat                               |
@@ -151,6 +159,8 @@ Dacă am folosi direct `export_retea`, un boiler pornit ar masca surplusul real 
 | `number.temperatura_maxima_<boiler>` | Number (°C, 30–95)   | Temperatura maximă țintă                                                                                                |
 | `number.prag_minim_surplus_solar`    | Number (W, 0–10 000) | Surplusul minim necesar pentru a porni orice boiler                                                                     |
 | `number.putere_nominala_<boiler>`    | Number (W, 0–10 000) | Puterea nominală a rezistenței (folosită în calculul surplusului virtual și ca fallback pentru consum)                  |
+| `datetime.inceput_vacanță`           | DateTime (dată)      | Prima zi în care încălzirea este blocată                                                                                |
+| `datetime.revenire_din_vacanță`      | DateTime (dată)      | Ziua în care încălzirea se reactivează                                                                                  |
 
 ---
 

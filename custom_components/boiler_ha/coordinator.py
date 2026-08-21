@@ -75,6 +75,8 @@ from .const import (
     RUNTIME_SCHEDULE_DEADLINE,
     RUNTIME_SCHEDULE_DONE_1,
     RUNTIME_SCHEDULE_DONE_2,
+    RUNTIME_VACATION_START,
+    RUNTIME_VACATION_END,
     RUNTIME_SOLAR_WINDOW_START,
     RUNTIME_SOLAR_WINDOW_END,
     RUNTIME_SOLAR_WINDOW_DONE_1,
@@ -245,6 +247,23 @@ class BoilerCoordinator(DataUpdateCoordinator):
         solar_raw = self._float_state(cfg[CONF_SOLAR_SENSOR])
         boiler1_on = self._is_on(relay_1)
         boiler2_on = self._is_on(relay_2)
+
+        vacation_start = rt.get(RUNTIME_VACATION_START)
+        vacation_end = rt.get(RUNTIME_VACATION_END)
+        local_today = dt_util.as_local(dt_util.now()).date()
+        vacation_active = (
+            vacation_start is not None
+            and vacation_end is not None
+            and dt_util.as_local(vacation_start).date() <= local_today < dt_util.as_local(vacation_end).date()
+        )
+        if vacation_active:
+            self._clog("vacanță: activă — încălzirea este blocată")
+            if boiler1_on:
+                await self._set_switch(relay_1, False)
+            if boiler2_on:
+                await self._set_switch(relay_2, False)
+            self._cycle_buf = []
+            return
 
         max_temp_1: float = rt.get(CONF_MAX_TEMP_1, DEFAULT_MAX_TEMP)
         max_temp_2: float = rt.get(CONF_MAX_TEMP_2, DEFAULT_MAX_TEMP)

@@ -17,6 +17,8 @@ from .const import (
     RUNTIME_AUTO_1,
     RUNTIME_AUTO_2,
     RUNTIME_SCHEDULE_TARGET,
+    RUNTIME_VACATION_START,
+    RUNTIME_VACATION_END,
     RUNTIME_SOLAR_WINDOW_START,
     RUNTIME_SOLAR_WINDOW_END,
     DEFAULT_MAX_TEMP,
@@ -70,6 +72,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # but doesn't write to rt until actually changed).
         RUNTIME_SCHEDULE_TARGET: DEFAULT_SCHEDULE_TARGET,
         # RUNTIME_SCHEDULE_DEADLINE intentionally absent (None = no active schedule)
+        # Vacation dates intentionally absent (None = vacation mode inactive)
+        RUNTIME_VACATION_START: None,
+        RUNTIME_VACATION_END: None,
         RUNTIME_SOLAR_WINDOW_START: DEFAULT_SOLAR_WINDOW_START,
         RUNTIME_SOLAR_WINDOW_END: DEFAULT_SOLAR_WINDOW_END,
     }

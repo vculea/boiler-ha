@@ -44,6 +44,10 @@ RUNTIME_SCHEDULE_DEADLINE = "schedule_deadline"  # aware UTC datetime — heatin
 RUNTIME_SCHEDULE_DONE_1 = "schedule_done_1"      # bool — True when boiler 1 reached the schedule target
 RUNTIME_SCHEDULE_DONE_2 = "schedule_done_2"      # bool — True when boiler 2 reached the schedule target
 
+# Vacation period runtime keys. The end date is the return date and is not blocked.
+RUNTIME_VACATION_START = "vacation_start"
+RUNTIME_VACATION_END = "vacation_end"
+
 # Daily solar window runtime keys
 # When active (start_h <= local_hour < end_h AND no manual schedule), hysteresis is
 # bypassed so the boiler always reaches the exact target using only solar surplus.
