@@ -15,7 +15,8 @@ Control logic:
 
 The "virtual surplus" calculation tells us: if we turned the boilers off,
 how much surplus power would be available? This reacts immediately when other
-consumers draw power (grid_export drops → virtual_surplus drops → boilers stop).
+consumers draw power. Grid import during solar heating stops boilers after the
+dashboard-adjustable delay, unless an existing grid-heating priority applies.
 """
 from __future__ import annotations
 
@@ -25,7 +26,7 @@ from datetime import datetime, timedelta
 
 from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_call_later, async_track_state_change_event
+from homeassistant.helpers.event import async_call_later, async_track_state_change_event, async_track_time_change
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -96,6 +97,10 @@ from .const import (
     STATUS_SCHEDULE_EXPIRED,
     STATUS_SCHEDULE_PLANNED,
     STATUS_SCHEDULE_INACTIVE,
+    DEFAULT_GRID_IMPORT_DELAY,
+    RUNTIME_GRID_IMPORT_DELAY,
+    RUNTIME_GRID_IMPORT_DELAY_DATE,
+    RUNTIME_GRID_IMPORT_SINCE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -116,6 +121,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self._unsub_listeners: list = []
         self._debounce_unsub = None
+        self._grid_import_unsub = None
         self._action_log: deque[str] = deque(maxlen=6)
         self._cycle_log: deque[str] = deque(maxlen=6)
         self._cycle_buf: list[str] = []
@@ -153,6 +159,45 @@ class BoilerCoordinator(DataUpdateCoordinator):
 
         unsub = async_track_state_change_event(self.hass, watch, _state_changed)
         self._unsub_listeners.append(unsub)
+        self._unsub_listeners.append(
+            async_track_time_change(self.hass, self._midnight_reset, hour=0, minute=0, second=0)
+        )
+
+    @callback
+    def _midnight_reset(self, _now) -> None:
+        self._reset_grid_import_delay()
+        self.hass.async_create_task(self.async_refresh())
+
+    def _reset_grid_import_delay(self) -> None:
+        rt = self._runtime()
+        today = dt_util.as_local(dt_util.now()).date().isoformat()
+        if rt.get(RUNTIME_GRID_IMPORT_DELAY_DATE) != today:
+            rt[RUNTIME_GRID_IMPORT_DELAY] = DEFAULT_GRID_IMPORT_DELAY
+            rt[RUNTIME_GRID_IMPORT_DELAY_DATE] = today
+
+    def _grid_import_waiting(self, importing: bool) -> bool:
+        """Track continuous import and refresh at expiry, not at the next poll."""
+        rt = self._runtime()
+        unsub = getattr(self, "_grid_import_unsub", None)
+        if unsub is not None:
+            unsub()
+            self._grid_import_unsub = None
+        if not importing:
+            rt.pop(RUNTIME_GRID_IMPORT_SINCE, None)
+            return False
+        now = dt_util.utcnow()
+        since = rt.setdefault(RUNTIME_GRID_IMPORT_SINCE, now)
+        remaining = rt.get(RUNTIME_GRID_IMPORT_DELAY, DEFAULT_GRID_IMPORT_DELAY) - (now - since).total_seconds()
+        if remaining <= 0:
+            return False
+
+        @callback
+        def _refresh(_now) -> None:
+            self._grid_import_unsub = None
+            self.hass.async_create_task(self.async_refresh())
+
+        self._grid_import_unsub = async_call_later(self.hass, remaining, _refresh)
+        return True
 
     @callback
     def async_cancel_subscriptions(self) -> None:
@@ -160,6 +205,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
         if self._debounce_unsub is not None:
             self._debounce_unsub()
             self._debounce_unsub = None
+        if self._grid_import_unsub is not None:
+            self._grid_import_unsub()
+            self._grid_import_unsub = None
         for unsub in self._unsub_listeners:
             unsub()
         self._unsub_listeners.clear()
@@ -223,6 +271,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
         cfg = self.entry.data
         rt = self._runtime()
         self._cycle_buf = []
+        self._reset_grid_import_delay()
 
         relay_1 = cfg[CONF_RELAY_1]
         relay_2 = cfg[CONF_RELAY_2]
@@ -257,6 +306,7 @@ class BoilerCoordinator(DataUpdateCoordinator):
             and dt_util.as_local(vacation_start).date() <= local_today < dt_util.as_local(vacation_end).date()
         )
         if vacation_active:
+            self._grid_import_waiting(False)
             self._clog("vacanță: activă — încălzirea este blocată")
             if boiler1_on:
                 await self._set_switch(relay_1, False)
@@ -326,6 +376,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
         grid_export: float = 0.0
         if grid_raw is not None:
             grid_export = grid_raw if grid_positive_is_export else -grid_raw
+        grid_import = grid_raw is not None and grid_export < 0
+        import_waiting = self._grid_import_waiting(grid_import)
 
         # Virtual surplus: how much solar would be available if boilers were OFF
         virtual_surplus = grid_export
@@ -358,6 +410,9 @@ class BoilerCoordinator(DataUpdateCoordinator):
             and window_start_h <= local_hour < window_end_h
             and not sched_base_active              # manual schedule takes precedence
             and panels_producing                   # only when there is actual solar
+        )
+        solar_time_allowed = (
+            window_start_h <= local_hour < window_end_h and not sched_base_active
         )
         if in_solar_window:
             self._clog(
@@ -601,6 +656,11 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 # regardless of whether B2 is currently on. B2 has first claim on the surplus.
                 surplus_for_b1 = virtual_surplus - boiler2_power
                 should_run_1 = (surplus_for_b1 >= min_surplus) and temp_ok_1 and heating_allowed_1
+            if grid_import and not (b1_priority and not b1_held_back):
+                should_run_1 = (
+                    boiler1_on and import_waiting and temp_ok_1
+                    and (solar_time_allowed or sched_active_1)
+                )
             _b1_act = (
                 "→ PORNIT" if (not boiler1_on and should_run_1) else
                 "→ OPRIT" if (boiler1_on and not should_run_1) else
@@ -608,6 +668,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 "standby"
             )
             _b1_note = (
+                f"import retea: asteptare {rt[RUNTIME_GRID_IMPORT_DELAY]:.0f}s" if (grid_import and should_run_1 and not b1_priority) else
+                "import retea: temporizare expirata" if (grid_import and not import_waiting and not should_run_1) else
                 "supratensiune" if (b1_priority and overvoltage_b1_priority and not b1_held_back) else
                 "prio temp<50%" if (b1_priority and not b1_held_back and heating_allowed_1) else
                 "în afara ferestrei solare" if (not heating_allowed_1 and not should_run_1) else
@@ -650,6 +712,11 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 # B2 has solar priority — B2 uses full virtual_surplus
                 surplus_for_b2 = virtual_surplus
                 should_run_2 = (surplus_for_b2 >= min_surplus) and temp_ok_2 and heating_allowed_2
+            if grid_import and not (b2_priority and not b2_held_back):
+                should_run_2 = (
+                    boiler2_on and import_waiting and temp_ok_2
+                    and (solar_time_allowed or sched_active_2)
+                )
             _b2_act = (
                 "→ PORNIT" if (not boiler2_on and should_run_2) else
                 "→ OPRIT" if (boiler2_on and not should_run_2) else
@@ -657,6 +724,8 @@ class BoilerCoordinator(DataUpdateCoordinator):
                 "standby"
             )
             _b2_note = (
+                f"import retea: asteptare {rt[RUNTIME_GRID_IMPORT_DELAY]:.0f}s" if (grid_import and should_run_2 and not b2_priority) else
+                "import retea: temporizare expirata" if (grid_import and not import_waiting and not should_run_2) else
                 "supratensiune" if (b2_priority and overvoltage_b2_priority and not b2_held_back) else
                 "prio temp<50%" if (b2_priority and not b2_held_back and heating_allowed_2) else
                 "în afara ferestrei solare" if (not heating_allowed_2 and not should_run_2) else

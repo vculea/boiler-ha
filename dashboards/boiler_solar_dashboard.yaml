@@ -184,12 +184,18 @@ cards:
     entities:
       - entity: number.boiler_solar_controller_prag_minim_surplus_solar
         name: Prag minim surplus
+      - entity: number.boiler_solar_controller_intarziere_oprire_consum_retea
+        name: Intarziere oprire consum retea (s)
       - entity: number.boiler_solar_controller_prag_supratensiune
         name: Prag supratensiune
       - entity: number.boiler_solar_controller_prag_prioritate_temperatura
         name: Prag prioritate temp. (%)
       - entity: datetime.boiler_solar_controller_deadline_program_solar
         name: Deadline program
+      - entity: datetime.boiler_solar_controller_inceput_vacanta
+        name: Inceput vacanta
+      - entity: datetime.boiler_solar_controller_revenire_din_vacanta
+        name: Revenire din vacanta
       - entity: select.boiler_solar_controller_temperatura_program_solar
         name: Temp. program
       - entity: sensor.boiler_solar_controller_program_solar

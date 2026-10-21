@@ -2,6 +2,7 @@
 
 Provides dashboard-adjustable inputs (BOX mode) for:
   - Minimum solar surplus      (0–10 000 W, default 800)
+  - Grid import shutdown delay (0–3600 s, default 5, resets at local midnight)
   - Overvoltage threshold      (210–255 V, default 250)
   - Boiler 1 rated power       (0–10 000 W, default 1500)
   - Boiler 2 rated power       (0–10 000 W, default 1500)
@@ -14,6 +15,9 @@ without reloading the config entry. Values are restored via RestoreEntity on res
 """
 from __future__ import annotations
 
+import logging
+import math
+
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfPower
@@ -22,6 +26,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN,
@@ -36,8 +41,13 @@ from .const import (
     DEFAULT_PRIORITY_TEMP_RATIO,
     RUNTIME_PRIORITY_VOLTAGE,
     RUNTIME_PRIORITY_TEMP_RATIO,
+    DEFAULT_GRID_IMPORT_DELAY,
+    RUNTIME_GRID_IMPORT_DELAY,
+    RUNTIME_GRID_IMPORT_DELAY_DATE,
 )
 from .coordinator import BoilerCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -54,6 +64,7 @@ async def async_setup_entry(
             BoilerSurplusThresholdNumber(coordinator, entry, DEFAULT_MIN_SURPLUS),
             BoilerOvervoltageThresholdNumber(coordinator, entry, DEFAULT_PRIORITY_VOLTAGE),
             BoilerPriorityTempRatioNumber(coordinator, entry, DEFAULT_PRIORITY_TEMP_RATIO),
+            BoilerGridImportDelayNumber(coordinator, entry, DEFAULT_GRID_IMPORT_DELAY),
             BoilerRatedPowerNumber(coordinator, entry, CONF_BOILER1_POWER, b1, "1", DEFAULT_BOILER_POWER),
             BoilerRatedPowerNumber(coordinator, entry, CONF_BOILER2_POWER, b2, "2", DEFAULT_BOILER_POWER),
         ]
@@ -103,6 +114,44 @@ class _BoilerNumber(CoordinatorEntity, NumberEntity, RestoreEntity):
 
 
 # ── Concrete entities ─────────────────────────────────────────────────────────
+
+class BoilerGridImportDelayNumber(_BoilerNumber):
+    """Temporary solar shutdown delay, restored only within the same local day."""
+
+    _attr_native_min_value = 0.0
+    _attr_native_max_value = 3600.0
+    _attr_native_step = 1.0
+    _attr_native_unit_of_measurement = "s"
+    _attr_icon = "mdi:timer-outline"
+    _attr_name = "Intarziere oprire consum retea"
+
+    def __init__(self, coordinator: BoilerCoordinator, entry: ConfigEntry, default: float) -> None:
+        super().__init__(coordinator, entry, RUNTIME_GRID_IMPORT_DELAY, "grid_import_delay", default)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        rt = self.hass.data[DOMAIN][self._entry.entry_id]
+        return {"override_date": rt.get(RUNTIME_GRID_IMPORT_DELAY_DATE)}
+
+    async def async_set_native_value(self, value: float) -> None:
+        if not math.isfinite(value) or not self._attr_native_min_value <= value <= self._attr_native_max_value:
+            raise ValueError("Intarzierea trebuie sa fie intre 0 si 3600 de secunde")
+        rt = self.hass.data[DOMAIN][self._entry.entry_id]
+        rt[RUNTIME_GRID_IMPORT_DELAY_DATE] = dt_util.as_local(dt_util.now()).date().isoformat()
+        await super().async_set_native_value(value)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        today = dt_util.as_local(dt_util.now()).date().isoformat()
+        if last is None or last.attributes.get("override_date") != today:
+            return
+        try:
+            value = float(last.state)
+        except (ValueError, TypeError):
+            _LOGGER.warning("Valoare restaurata invalida pentru intarzierea opririi: %s", last.state)
+            return
+        await self.async_set_native_value(value)
 
 
 class BoilerSurplusThresholdNumber(_BoilerNumber):
@@ -206,4 +255,3 @@ class BoilerRatedPowerNumber(_BoilerNumber):
     ) -> None:
         super().__init__(coordinator, entry, runtime_key, f"rated_power_{boiler_index}", default)
         self._attr_name = f"Putere nominală {boiler_name}"
-

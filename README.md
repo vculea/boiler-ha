@@ -92,7 +92,9 @@ Senzorul de rețea poate raporta cu semn pozitiv fie importul, fie exportul — 
 
    ```
    pornire  dacă: surplus_virtual >= prag_minim  ȘI  temp < max_temp  (sau sub prag histerezis)
-   oprire   dacă: surplus_virtual < prag_minim  SAU  temp >= max_temp
+   oprire   dacă: import_retea continuu >= intarziere (implicit 5 s)
+                 SAU surplus_virtual < prag_minim (fara import)
+                 SAU temp >= max_temp (imediat)
    ```
 
 3. **Control automat Boiler 2** (pornește doar dacă rămâne surplus după boilerul 1)
@@ -117,7 +119,7 @@ setată la **Revenire din vacanță**, controlul normal se reactivează automat.
 | ---- | ------------------------------------------------- | :-----------: | ------------------------- | ---------------------------------- | :------------: | :-----: | -------------------------------------- |
 | S1   | Încălzire solară normală                          |      OFF      | < target − 5°C            | ≥ prag                             |     Normal     |   ON    | **Pornire**                            |
 | S2a  | Surplus insuficient, releu OFF                    |      OFF      | < target − 5°C            | < prag                             |     Normal     |   ON    | **Rămâne oprit**                       |
-| S2b  | Surplus dispare în timp ce rulează¹               |      ON       | < target                  | virtual < prag                     |     Normal     |   ON    | **Oprire**                             |
+| S2b  | Import din rețea în timp ce rulează¹              |      ON       | < target                  | orice surplus virtual              |     Normal     |   ON    | **Oprire după întârzierea setată**      |
 | S3   | Protecție supraîncălzire                          |      ON       | ≥ target                  | orice                              |     orice      |  orice  | **Oprire imediată**                    |
 | S4   | Histerezis temp — în bandă, releu OFF             |      OFF      | target−5 ≤ temp < target  | ≥ prag                             |     Normal     |   ON    | **Rămâne oprit**                       |
 | S5   | Histerezis temp — sub prag, repornire             |      OFF      | < target − 5°C            | ≥ prag                             |     Normal     |   ON    | **Pornire**                            |
@@ -200,7 +202,18 @@ Toate valorile de mai jos pot fi modificate live din dashboard (entitățile `nu
 | ----------------------------- | -------- | ------------------------------------------------------------------------------------------ |
 | Temperatură maximă Boiler 1/2 | 90 °C    | Boilerul se oprește când atinge această temperatură                                        |
 | Prag minim surplus solar      | 800 W    | Sub acest surplus, niciun boiler nu pornește                                               |
+| Întârziere oprire consum rețea | 5 s      | Reglabilă din dashboard între 0 și 3600 s; revine la 5 s zilnic la 00:00 (ora locală HA) |
 | Putere nominală Boiler 1/2    | 1500 W   | Puterea rezistenței, folosită în calculul surplusului virtual și ca fallback pentru consum |
+
+Întârzierea se aplică ambelor boilere în modul solar la orice import din rețea,
+chiar dacă surplusul virtual depășește pragul minim. Importul trebuie să fie
+continuu pe durata setată; revenirea la export anulează temporizarea. Valoarea
+0 dezactivează întârzierea suplimentară. Nu se pornesc boilere noi în modul solar
+cât timp există import. Prioritățile existente de temperatură/supratensiune,
+protecția de temperatură, vacanța și sfârșitul intervalului permis au precedență.
+Valoarea modificată se păstrează la restart doar în aceeași zi locală; după
+miezul nopții revine la 5 s. Temporizarea începe la detectarea importului de către
+coordinator (evenimentele senzorilor au filtrarea existentă de 3 s).
 
 > **Histerezis temperatură**: după atingerea temperaturii maxime, boilerul nu repornește decât când temperatura scade cu 5 °C sub țintă. Histerezisul e ignorat automat dacă targetul e modificat de user sau dacă e activă prioritatea de tensiune mare.
 
@@ -232,6 +245,7 @@ python -m pytest tests/ -v
 tests/
   conftest.py              — stub-uri pentru modulele homeassistant
   test_control_logic.py    — logica de control (S1–S2, S7–S8, S12–S17)
+  test_grid_import_delay.py — temporizare import, resetare zilnică și restaurare
   test_temp_hysteresis.py  — histerezis temperatură (S3–S6)
   test_voltage_boost.py    — boost target supratensiune + histerezis tensiune (S8–S11)
 ```
@@ -243,7 +257,7 @@ tests/
 | `test_s1_normal_solar_heating_b1`                                  |    S1    | B1 pornește când surplus ≥ prag și temp sub target                                           |
 | `test_s1_normal_solar_heating_b2`                                  |    S1    | B2 pornește când surplus acoperă ambii boileri                                               |
 | `test_s2_insufficient_surplus_b1_stays_off`                        |   S2a    | B1 nu pornește când surplus < prag                                                           |
-| `test_s2_insufficient_surplus_b1_turns_off`                        |   S2b    | B1 se oprește când virtual surplus scade sub prag                                            |
+| `test_s2_insufficient_surplus_b1_turns_off`                        |   S2b    | B1 se oprește imediat la import cu întârzierea setată la 0 s                                 |
 | `test_boiler_does_not_restart_just_below_target`                   |    S4    | Nu repornește la 1°C sub target (în bandă histerezis)                                        |
 | `test_boiler_does_not_restart_at_exact_hysteresis_boundary`        |    S4    | Nu repornește exact la `target − 5°C` (strict `<`)                                           |
 | `test_boiler_restarts_below_hysteresis_threshold`                  |    S5    | Repornește sub `target − 5°C`                                                                |

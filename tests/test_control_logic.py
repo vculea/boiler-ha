@@ -67,6 +67,7 @@ from custom_components.boiler_ha.const import (  # noqa: E402
     RUNTIME_SCHEDULE_DEADLINE,
     RUNTIME_VACATION_START,
     RUNTIME_VACATION_END,
+    RUNTIME_GRID_IMPORT_DELAY,
 )
 
 MAX_TEMP = 65.0
@@ -250,17 +251,17 @@ async def test_s2_insufficient_surplus_b1_stays_off():
 
 @pytest.mark.asyncio
 async def test_s2_insufficient_surplus_b1_turns_off():
-    """S2 — When B1 is ON, virtual_surplus = grid_export + B1_power.
-    B1 turns OFF only when even the virtual surplus drops below the threshold,
-    i.e. grid_export < min_surplus - B1_power (grid is importing enough to cancel B1's contribution)."""
+    """S2 — With zero import delay, insufficient surplus stops B1 immediately."""
     temp_cold = MAX_TEMP - TEMP_HYSTERESIS - 5.0
     # virtual_surplus = grid_export + B1_power < min_surplus
     # → grid_export < min_surplus - B1_power  (negative = importing from grid)
     grid_export_too_low = DEFAULT_MIN_SURPLUS - DEFAULT_BOILER_POWER - 100.0  # e.g. -800 W
-    coord, _ = _make_coord(
+    coord, rt = _make_coord(
         temp1=temp_cold, temp2=temp_cold,
         relay1_on=True, grid_export=grid_export_too_low,
     )
+    coord._reset_grid_import_delay()
+    rt[RUNTIME_GRID_IMPORT_DELAY] = 0
 
     await coord._apply_control_logic()
 
